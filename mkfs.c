@@ -95,12 +95,12 @@ int main(int argc, char ** argv) {
 
     // initialize root inode; CONSIDER: may need to zero the bitmaps, dont think so so I wont do it.
     struct wfs_inode * inode = (struct wfs_inode *) malloc(sizeof(struct wfs_inode));
-    inode->num = 0; // NOTE ROOT DIRECTORY IS FIRST INODE
-    inode->mode = 0; // change online says S_IFDIR | 0755, asked piazza
+    inode->num = 1; // NOTE ROOT DIRECTORY IS FIRST INODE
+    inode->mode = S_IFDIR | 0755; // directory with rwx for all users. Piazza said it doesnt really matter what permissions we give it.
     inode->uid = 0;
     inode->gid = 0;
-    inode->size = 2 * sizeof(struct wfs_dentry); // for . and .. dirs
-    inode->nlinks = 2;
+    inode->size = 0; // for . and .. dirs
+    inode->nlinks = 0;
     inode->atim = inode->mtim = inode->ctim = time(NULL);
     for(int i = 0; i < N_BLOCKS; i++) {
         inode->blocks[i] = 0;
@@ -110,6 +110,12 @@ int main(int argc, char ** argv) {
     lseek(fd, superblock->i_blocks_ptr, SEEK_SET);
     write(fd, inode, sizeof(struct wfs_inode));
 
+    // set IBITMAP to 1 for the first spot for the root inode
+    lseek(fd, superblock->i_bitmap_ptr, SEEK_SET);
+    unsigned char value = 1; // write one for the root inode.
+    write(fd, &value, 1);
+
+    close(fd);
     free(DISK_IMG_PATH);
     return 0;
 }
