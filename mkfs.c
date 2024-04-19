@@ -91,7 +91,7 @@ int main(int argc, char ** argv) {
 
     // write super block to beginning of disk img
     lseek(fd, 0, SEEK_SET);
-    write(fd, (void *)superblock, sizeof(superblock));
+    write(fd, (void *)superblock, sizeof(struct wfs_sb));
 
     // initialize root inode; CONSIDER: may need to zero the bitmaps, dont think so so I wont do it.
     struct wfs_inode * inode = (struct wfs_inode *) malloc(sizeof(struct wfs_inode));
