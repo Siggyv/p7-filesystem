@@ -16,12 +16,20 @@ static int my_getattr(const char *path, struct stat *stbuf) {
     return 0; // Return 0 on success
 }
 
+static int wfs_mkdir(const char *path, mode_t mode) {
+    // Implementation of getattr function to retrieve file attributes
+    // Fill stbuf structure with the attributes of the file/directory indicated by path
+    // ...
+    printf("in mkdir\n");
+    return 0; // Return 0 on success
+}
 
 // add fuse ops here
 static struct fuse_operations ops = {
     // Add other functions (read, write, mkdir, etc.) here as needed
     // usage: .function_name = c_method_name
     .getattr = my_getattr,
+    .mkdir = wfs_mkdir,
 };
 
 
