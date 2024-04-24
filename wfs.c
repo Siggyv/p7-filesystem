@@ -6,14 +6,34 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/mman.h>
+
+
+
+
+
+
+
+
+struct wfs_sb *file_system; //define a file system we can use
+
+
 
 // this fuse operation makes a directory
 static int my_getattr(const char *path, struct stat *stbuf) {
-    // Implementation of getattr function to retrieve file attributes
-    // Fill stbuf structure with the attributes of the file/directory indicated by path
-    // ...
-    printf("testing\n");
-    return 0; // Return 0 on success
+    printf("the stat function is now running\n");
+    memset(stbuf, 0, sizeof(struct stat));
+    if (strcmp(path, "/") == 0) { // Assuming '/' is your root directory
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2; // Common for directories
+    } else {
+        stbuf->st_mode = S_IFREG | 0444;
+        stbuf->st_nlink = 1;
+        stbuf->st_size = 1024; // Example size
+    }
+
+    // Properly set time fields and others as necessary
+    return 0;
 }
 
 
@@ -42,11 +62,20 @@ int main(int argc, char ** argv) {
     }
 
     // attempt to open disk img to verify path
-    int fd = open(disk_img_path, O_RDONLY);
+    int fd = open(disk_img_path, O_RDWR);
     if(fd < 0) {
         printf("ERROR: cannot open disk image, verify the path.\nPATH GIVEN: %s\n", disk_img_path);
         exit(1);
     }
+    struct stat stat;
+    fstat(fd,&stat);
+    off_t size = stat.st_size;
+
+    file_system = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0); // Corrected mmap call    int test = file_system->d_bitmap_ptr;
+    // Accessing the data structure
+    int test = file_system->d_bitmap_ptr;
+    printf("bitmap pointer is: %d\n", test);
+    
     close(fd);
 
     // remove disk image path from args to give to fuse main
