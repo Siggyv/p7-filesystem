@@ -15,6 +15,7 @@ struct wfs_sb* super_block;
 //return 0 on success, -1 on failure
 //fills up a given inode, given a path of a inode
 int get_inode(const char *path, struct wfs_inode *inode){
+    // printf("the path is: %s\n", path);
     //fetch the root inode
     struct wfs_inode *curr_inode = (struct wfs_inode *) (file_system + super_block->i_blocks_ptr);
     //loop through the path
@@ -24,6 +25,11 @@ int get_inode(const char *path, struct wfs_inode *inode){
     int i;
     int found; //ensures the path has been found
     while((token = strsep(&copy_path, "/")) != NULL){
+        //skip empty tokens
+        if(strcmp(token, "") == 0){
+           continue;
+        }
+        printf("the token is: %s\n", token);
         //nothing found yet
         found = 0; 
         //fetch the datablock entries
@@ -39,6 +45,7 @@ int get_inode(const char *path, struct wfs_inode *inode){
         }
         //if the path was never found, it does not exist
         if(!found){
+            free(copy_path);
             return -1;
         }
 
@@ -46,17 +53,21 @@ int get_inode(const char *path, struct wfs_inode *inode){
         curr_inode = (struct wfs_inode *) (file_system + super_block->i_blocks_ptr + (datablock->num*sizeof(struct wfs_inode)));
         
     }
-
-    // free(copy_path);
+    //copy over relevant struct data
+    //TODO make sure this is the correct inode that should be copied over.
+    //also make sure this correctly copies it over
+    memcpy(inode,curr_inode,sizeof(struct wfs_inode));
+    free(copy_path);
     return 0;
 }
 
 // this fuse operation makes a directory
 static int my_getattr(const char *path, struct stat *stbuf) {
     struct wfs_inode inode;
-    get_inode("path",&inode);
+    if(get_inode(path,&inode) != 0){
+        printf("ERROR RETRIEVING INODE\n");
+    }
 
-    printf("the stat function is now running\n");
     memset(stbuf, 0, sizeof(struct stat));
     if (strcmp(path, "/") == 0) { // Assuming '/' is your root directory
         stbuf->st_mode = S_IFDIR | 0755;
