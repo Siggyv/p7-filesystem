@@ -32,7 +32,7 @@ static int wfs_mkdir(const char *path, mode_t mode) {
     // Implementation of getattr function to retrieve file attributes
     // Fill stbuf structure with the attributes of the file/directory indicated by path
     // ...
-    printf("in mkdir\n");
+    printf("mkdir is now running\n");
     return 0; // Return 0 on success
 }
 
