@@ -224,14 +224,47 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
 //     return 0; // Return 0 on success
 // }
 
+	/** Read data from an open file
+	 *
+	 * Read should return exactly the number of bytes requested except
+	 * on EOF or error, otherwise the rest of the data will be
+	 * substituted with zeroes.	 An exception to this is when the
+	 * 'direct_io' mount option is specified, in which case the return
+	 * value of the read system call will reflect the return value of
+	 * this operation.
+	 *
+	 * Changed in version 2.2
+	 */
+static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct fuse_file_info * file) {
+    printf("In read...\n");
+
+
+
+
+    printf("Finished read...\n");
+    return 0; 
+}
+
+static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t offset, struct fuse_file_info *file_info) {
+    printf("In readdir\n");
+    struct wfs_inode * parent_dir;
+    //get_inode()
+    printf("End of readdir\n");
+    return 0;
+}
+
 // add fuse ops here
 static struct fuse_operations ops = {
-    // Add other functions (read, write, mkdir, etc.) here as needed
-    // usage: .function_name = c_method_name
-    .getattr = wfs_getattr,
-    .mknod = wfs_mknod,
-    // .mkdir = wfs_mkdir,
+  .getattr = wfs_getattr,
+  .mknod   = wfs_mknod,
+  //.mkdir   = wfs_mkdir,
+  //.unlink  = wfs_unlink,
+  //.rmdir   = wfs_rmdir,
+  //.read    = wfs_read,
+  //.write   = wfs_write,
+  //.readdir = wfs_readdir,
 };
+
 
 int main(int argc, char **argv)
 {
