@@ -293,6 +293,7 @@ static struct fuse_operations ops = {
     .mkdir = wfs_mkdir,
 };
 
+
 int main(int argc, char **argv)
 {
     if (argc < 3)
