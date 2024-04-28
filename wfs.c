@@ -7,13 +7,14 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <errno.h>
 
 char *file_system; // define a file system we can use
 struct wfs_sb *super_block;
 
 // return 0 on success, -1 on failure
 // fills up a given inode, given a path of a inode
-int get_inode(const char *path, struct wfs_inode *inode)
+static int get_inode(const char *path, struct wfs_inode *inode)
 {
     // printf("the path is: %s\n", path);
     // fetch the root inode
@@ -31,7 +32,7 @@ int get_inode(const char *path, struct wfs_inode *inode)
         {
             continue;
         }
-        printf("the token is: %s\n", token);
+        // printf("the token is: %s\n", token);
         // nothing found yet
         found = 0;
         // fetch the datablock entries
@@ -68,10 +69,11 @@ int get_inode(const char *path, struct wfs_inode *inode)
 // this fuse operation makes a directory
 static int wfs_getattr(const char *path, struct stat *stbuf)
 {
+    // printf("entering getarr code\n");
     struct wfs_inode inode;
     if (get_inode(path, &inode) != 0)
     {
-        printf("ERROR RETRIEVING INODE\n");
+        return -ENOENT;
     }
 
     // TODO, add all needed attributes here
@@ -89,9 +91,6 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
 
     return 0;
 }
-
-
-
 
 static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
 {
@@ -112,19 +111,19 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
     parent_path[last_slash_index+1] = '\0';
     char* file_name = strdup(path + last_slash_index+1);
     printf("The filename is: %s\n", file_name);
+    printf("The parent path is: %s\n", parent_path);
 
-
-
-    //grab the parents inode
+    //check that parent path exists
     struct wfs_inode inode;
-
-    if (get_inode(path, &inode) != 0)
+    if (get_inode(parent_path, &inode) != 0)
     {
-        printf("ERROR RETRIEVING INODE\n");
+        // printf("it does not exist, returnig.\n");
+        return -ENOENT;
     }
+    
+    printf("it does exist\n");
 
-
-    return 0;
+    return 0; // Success
 }
 
 // static int wfs_mkdir(const char *path, mode_t mode) {
