@@ -39,6 +39,10 @@ struct wfs_inode *get_inode(const char *path)
         // look through current inodes data blocks
         for (i = 0; i < N_BLOCKS; i++)
         {
+            // printf("entering each block, current block: %ld\n", curr_inode->blocks[i]);
+            if(curr_inode->blocks[i] == -1){
+                continue;
+            }
             // gets the starting offset of the datablocks, and adds the current block offset to get the datablock
             datablock = (struct wfs_dentry *)(file_system + super_block->d_blocks_ptr + curr_inode->blocks[i]);
             // compare the current path token to see if it exists in a datablock entry
@@ -73,6 +77,7 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
         return -ENOENT;
     }
 
+    printf("the inode number is: %d\n",inode->num);
     // TODO, add all needed attributes here
     stbuf->st_ino = inode->num; // not sure if this one is correct.
     stbuf->st_mode = inode->mode;
@@ -94,7 +99,7 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
 // if not enough space, returns NULL
 struct wfs_inode *allocate_inode()
 {
-    off_t curr_inode_bit = super_block->i_bitmap_ptr;
+    off_t curr_inode_bit = super_block->i_bitmap_ptr+2; // need to start at 1 index (0 means empty)
     off_t upper_bound = super_block->d_bitmap_ptr;
     int free_inode_num;
     struct wfs_inode *inode_ptr;
@@ -108,13 +113,16 @@ struct wfs_inode *allocate_inode()
         {
             // allocate the inode
             *(file_system + curr_inode_bit) = 1;
-            printf("curr inode is %ld", curr_inode_bit);
+            // printf("curr inode is %ld", curr_inode_bit);
             free_inode_num = curr_inode_bit - super_block->i_bitmap_ptr;
             inode_ptr = (struct wfs_inode *)(file_system + (free_inode_num * sizeof(struct wfs_inode)));
             // update inode basic attributes
+            printf("the inode number that is found free is: %d\n", free_inode_num);
             inode_ptr->num = free_inode_num;
             inode_ptr->uid = getuid();
             inode_ptr->gid = getgid();
+            inode_ptr->size = 0; // initially empty
+            inode_ptr->nlinks=0; // initially empty
             inode_ptr->atim = time(NULL);
             inode_ptr->mtim = time(NULL);
             inode_ptr->ctim = time(NULL);
@@ -126,6 +134,33 @@ struct wfs_inode *allocate_inode()
 
     // if not enough space, will return null.
     return NULL;
+}
+
+// returns a offset from the datablock
+// Otherwise returns -1 if no more space left
+off_t allocate_datablock()
+{
+    off_t free_datablock;
+    off_t curr_datablock_bit = super_block->d_bitmap_ptr;
+    off_t upper_bound = super_block->i_blocks_ptr;
+
+    while (curr_datablock_bit < upper_bound)
+    {
+        // look for the free data bit
+        if (*(file_system + curr_datablock_bit) == 0)
+        {
+            // allocate the datablock bit
+            *(file_system + curr_datablock_bit) = 1;
+            // figure out which datablock this is (index)
+            free_datablock = (curr_datablock_bit - super_block->d_bitmap_ptr) * BLOCK_SIZE;
+            // calculate the address of this datablock
+            return free_datablock;
+        }
+
+        curr_datablock_bit++;
+    }
+
+    return -1;
 }
 
 static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
@@ -156,47 +191,28 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
     // check that parent path exists
     if (parent == NULL)
     {
-        // printf("it does not exist, returnig.\n");
         return -ENOENT;
     }
+
+    // allocate the new inode
     struct wfs_inode *new_inode = allocate_inode();
-    printf("the new inode is %d", new_inode->num);
-    // int HARD_CODED_INODE_NUMBER = 2;
-    // int ROOT_INODE_NUMBER = 1;
-    // struct wfs_inode *inode_table = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr);
-    // unsigned char *inode_bitmap = (unsigned char *)(file_system + super_block->i_bitmap_ptr);
+    new_inode->mode = mode;
 
-    // // Set the inode bitmap for the hardcoded inode number
-    // inode_bitmap[HARD_CODED_INODE_NUMBER / 8] |= (1 << (HARD_CODED_INODE_NUMBER % 8));
-
-    // // Initialize the hardcoded inode directly in memory
-    // struct wfs_inode *new_inode = &inode_table[HARD_CODED_INODE_NUMBER];
-    // new_inode->num = HARD_CODED_INODE_NUMBER;
-    // new_inode->mode = S_IFCHR | 0644; // Character device with rw-r--r-- permissions
-    // new_inode->uid = getuid();        // User ID of owner
-    // new_inode->gid = getgid();        // Group ID of owner
-    // new_inode->size = 0;              // Initial size for device files usually set to 0
-    // new_inode->nlinks = 1;            // Number of links to the inode
-    // new_inode->atim = new_inode->mtim = new_inode->ctim = time(NULL); // Set current time
-
-    // // Device specific setup, setting device ID
-    // new_inode->blocks[0] = 1;  // Using first block to store device identifier (example)
-
-    // // Update the root directory to include this new device file
-    // struct wfs_inode *root_inode = &inode_table[ROOT_INODE_NUMBER];
-    // struct wfs_dentry *root_dentry = (struct wfs_dentry *)(file_system + super_block->d_blocks_ptr + root_inode->blocks[0] * BLOCK_SIZE);
-
-    // // Find a free entry in the root directory (simplification: assuming there's space)
-    // int i = 0;
-    // while (root_dentry[i].num != 0 && i < MAX_NAME) { // Simple check, assuming MAX_NAME is the max entries per block
-    //     i++;
-    // }
-
-    // if (i < MAX_NAME) {
-    //     strcpy(root_dentry[i].name, "a");
-    //     root_dentry[i].num = HARD_CODED_INODE_NUMBER;
-    // }
-    // // No need to flush to disk as mmap will take care of eventual consistency
+    int i = 0;
+    // map the new inode in the parent directory
+    for (i = 0; i < N_BLOCKS; i++)
+    {
+        if (parent->blocks[i] == -1)
+        {
+            break;
+        }
+    }
+    off_t new_datablock = allocate_datablock();
+    parent->blocks[i] = new_datablock;
+    struct wfs_dentry *data_entry = ((struct wfs_dentry *)(file_system + super_block->d_blocks_ptr + new_datablock));
+    // copy over name and inode number
+    memcpy(data_entry->name, file_name, MAX_NAME);
+    data_entry->num = new_inode->num;
     return 0; // Success
 }
 
@@ -260,7 +276,7 @@ int main(int argc, char **argv)
     {
         fuse_args[i] = argv[i + 1];
     }
-    printf("the free inode is %d\n", allocate_inode()->num);
+    // printf("the free inode is %d\n", allocate_inode()->num);
     return fuse_main(argc - 1, fuse_args, &ops, NULL);
     ;
 }

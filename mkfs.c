@@ -103,7 +103,7 @@ int main(int argc, char ** argv) {
     inode->nlinks = 0;
     inode->atim = inode->mtim = inode->ctim = time(NULL);
     for(int i = 0; i < N_BLOCKS; i++) {
-        inode->blocks[i] = 0;
+        inode->blocks[i] = -1; // updated as a block at offset 0 is possible.
     }
 
     // write at correct spot
