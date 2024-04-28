@@ -61,7 +61,12 @@ struct wfs_inode *get_inode(const char *path)
 
         // if it is found, update the current node, TODO, make sure this arithmetic is correct.
         curr_inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (datablock->num * sizeof(struct wfs_inode)));
+        if(strcmp(datablock->name, "a") == 0){
+            printf(" i have found it. the block: %d exists.\n", datablock->num);
+        }
+        // printf("the current node is found, and its num is: %d\n", curr_inode->num);
     }
+    // printf("the current node is found, and its num is: %d\n", curr_inode->num);
     // return the address of the inode, and free memory
     free(copy_path);
     return curr_inode;
@@ -77,7 +82,9 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
         return -ENOENT;
     }
 
-    printf("the inode number is: %d\n",inode->num);
+    // printf("the path is %s, and the inode fetched num is: %d, and uid: %d\n", path, inode->num, inode->uid);
+
+    // printf("the inode number is: %d\n",inode->num);
     // TODO, add all needed attributes here
     stbuf->st_ino = inode->num; // not sure if this one is correct.
     stbuf->st_mode = inode->mode;
@@ -99,7 +106,7 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
 // if not enough space, returns NULL
 struct wfs_inode *allocate_inode()
 {
-    off_t curr_inode_bit = super_block->i_bitmap_ptr+2; // need to start at 1 index (0 means empty)
+    off_t curr_inode_bit = super_block->i_bitmap_ptr+1; // need to start at 1 index (0 means empty)
     off_t upper_bound = super_block->d_bitmap_ptr;
     int free_inode_num;
     struct wfs_inode *inode_ptr;
@@ -115,7 +122,7 @@ struct wfs_inode *allocate_inode()
             *(file_system + curr_inode_bit) = 1;
             // printf("curr inode is %ld", curr_inode_bit);
             free_inode_num = curr_inode_bit - super_block->i_bitmap_ptr;
-            inode_ptr = (struct wfs_inode *)(file_system + (free_inode_num * sizeof(struct wfs_inode)));
+            inode_ptr = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (free_inode_num * sizeof(struct wfs_inode)));
             // update inode basic attributes
             printf("the inode number that is found free is: %d\n", free_inode_num);
             inode_ptr->num = free_inode_num;
@@ -183,8 +190,8 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
     // seperate the parent path and child path
     parent_path[last_slash_index + 1] = '\0';
     char *file_name = strdup(path + last_slash_index + 1);
-    printf("The filename is: %s\n", file_name);
-    printf("The parent path is: %s\n", parent_path);
+    // printf("The filename is: %s\n", file_name);
+    // printf("The parent path is: %s\n", parent_path);
 
     // get the parent, and allocate space for a new inode
     struct wfs_inode *parent = get_inode(parent_path);

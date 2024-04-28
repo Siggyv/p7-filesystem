@@ -110,8 +110,9 @@ int main(int argc, char ** argv) {
     lseek(fd, superblock->i_blocks_ptr, SEEK_SET);
     write(fd, inode, sizeof(struct wfs_inode));
 
-    // set IBITMAP to 1 for the first spot for the root inode
-    lseek(fd, superblock->i_bitmap_ptr, SEEK_SET);
+
+    // set IBITMAP to 1 for the first spot for the root inode, skip 0 since this means empty
+    lseek(fd, superblock->i_bitmap_ptr+1, SEEK_SET);
     unsigned char value = 1; // write one for the root inode.
     write(fd, &value, 1);
 
