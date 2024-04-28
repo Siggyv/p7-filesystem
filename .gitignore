@@ -2,4 +2,5 @@
 disk.img
 mkfs
 wfs
+mkfs_test
 
