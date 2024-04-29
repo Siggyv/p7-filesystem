@@ -340,7 +340,7 @@ static int wfs_mkdir(const char *path, mode_t mode)
 static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t offset, struct fuse_file_info *file_info) {
     printf("In readdir\n");
     struct wfs_inode * parent_dir = get_inode(path); // get parent_dir
-    printf("parent dir %p\n", (void *)parent_dir);
+    printf("parent dir %s\n", path);
     if(parent_dir == NULL) {
         return -ENOENT;
     }
@@ -352,19 +352,51 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
         return 1;
     }
 
+
     // read in names, check d bitmap, once a zero is reached break out of while True
     char * d_bitmap = file_system + super_block->d_bitmap_ptr;
     char * data_blocks = file_system + super_block->d_blocks_ptr;
-    int safety_counter = 0;
 
     for(int i = 0; i < N_BLOCKS; i++) {
         printf("%d", *(d_bitmap + i));
     }
     printf("\n");
+    printf("inode num: %d\n", parent_dir->num);
     // initially was a while true, but thought this would be better to avoid worse case scenarios.
     for(int i = 0; i < N_BLOCKS; i++) {
         // get correct bitmap number
         int d_offset = parent_dir->blocks[i];
+        if(d_offset == -1) {
+            printf("d_offset: %d\n", d_offset);
+            continue;
+        }
+
+        // get bitmap value
+        int isUsed = *(d_bitmap + d_offset);
+
+        if(isUsed == 1) {
+            printf("Offset checked: %d\n", d_offset);
+            // grab dentry from datablock
+            struct wfs_dentry *dentry = (struct wfs_dentry *) data_blocks + d_offset * sizeof(struct wfs_dentry);
+
+            // get statbuf for fill
+            struct stat * statbuf = (struct stat *) malloc(sizeof(struct stat));
+            char subfile_path[MAX_NAME + 2 + strlen(path)];
+            strcpy(subfile_path, path);
+            strcat(subfile_path, "/");
+            strcat(subfile_path, dentry->name);
+            if(wfs_getattr(subfile_path, statbuf) != 0){
+                printf("ERROR with getattr\n");
+                return 1;
+            }
+
+            // fill
+            if(fill(buf, dentry->name, statbuf, i) != 0) {
+                printf("Buffer is full...\n");
+                return 1;
+            }
+            
+        }
     }
     printf("End of readdir\n");
     return 0;
