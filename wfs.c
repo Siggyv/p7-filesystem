@@ -199,12 +199,9 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
 // handles the basic inode insertion
 // creating inode, making space for it
 // and adding the inode to the parent directory
-int handle_inode_insertion(const char *path, mode_t mode)
-{
-    // last slash before path has the new inode file name/location
-    //  ex: /siggy, here we would just grab siggy from this
-    // or /siggy/adam, here we would just grab adam
 
+char *get_parent_path(const char *path)
+{
     int last_slash_index;
     for (int i = 0; i < strlen(path) - 1; i++)
     {
@@ -216,7 +213,32 @@ int handle_inode_insertion(const char *path, mode_t mode)
     char *parent_path = strdup(path);
     // seperate the parent path and child path
     parent_path[last_slash_index + 1] = '\0';
+
+    return parent_path;
+}
+
+char *get_file_name(const char *path)
+{
+    int last_slash_index;
+    for (int i = 0; i < strlen(path) - 1; i++)
+    {
+        if (path[i] == '/')
+        {
+            last_slash_index = i;
+        }
+    }
     char *file_name = strdup(path + last_slash_index + 1);
+    return file_name;
+}
+
+int handle_inode_insertion(const char *path, mode_t mode)
+{
+    // last slash before path has the new inode file name/location
+    //  ex: /siggy, here we would just grab siggy from this
+    // or /siggy/adam, here we would just grab adam
+
+    char *file_name = get_file_name(path);
+    char *parent_path = get_parent_path(path);
     // get the parent, and allocate space for a new inode
     struct wfs_inode *parent = get_inode(parent_path);
     // check that parent path exists
@@ -274,7 +296,8 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
 
 static int wfs_mkdir(const char *path, mode_t mode)
 {
-    printf("entering mkdir\n");
+    // printf("entering mkdir\n");
+    // set the mode to directory
     mode |= S_IFDIR;
     int handled_insertion = handle_inode_insertion(path, mode);
     if (handled_insertion != 0)
@@ -284,6 +307,51 @@ static int wfs_mkdir(const char *path, mode_t mode)
     return 0; // Success
 }
 
+// finds and removes an entry given by name, returns 0
+// if entry is not found, will return -1
+int find_and_remove_entry_from_directory(struct wfs_inode *directory, char *file_name)
+{
+    // search for entry
+    off_t curr_offset;
+    struct wfs_dentry *curr_entry;
+    for (int i = 0; i < N_BLOCKS; i++)
+    {
+        curr_offset = directory->blocks[i];
+        //not 100% sure if this is correct..
+        curr_entry = (struct wfs_dentry *)(file_system + super_block->d_blocks_ptr + curr_offset);
+        if (strcmp(curr_entry->name, file_name) == 0)
+        {
+            // remove entry data (set to -1)
+            directory->blocks[i] = -1;
+            // set this offset to free in bitmap, since the offsets are in index*512, have to divide
+            *(file_system+super_block->d_bitmap_ptr+(curr_offset/512)) = 0;
+            //set this inode to free in inode bitmap
+            *(file_system+super_block->i_bitmap_ptr+curr_entry->num) = 0;
+            return 0;
+        }
+    }
+    return -1;
+}
+/** Remove a file */
+static int wfs_unlink(const char *path)
+{
+    char *parent_path = get_parent_path(path);
+    struct wfs_inode *parent = get_inode(parent_path);
+
+    char *file_name = get_file_name(path);
+    struct wfs_inode *inode = get_inode(file_name);
+
+    //unlink from parent directory, remove entry from data bitmap and inode bitmap
+    int is_unliked = find_and_remove_entry_from_directory(parent, file_name);
+
+    //if it is a directory, need to 
+    // unallocate it in the inode bitmap
+    // find_and_remove_entry_from_directory
+
+    // unallocate each datablock in data bitmap
+
+    return 0;
+}
 // add fuse ops here
 static struct fuse_operations ops = {
     // Add other functions (read, write, mkdir, etc.) here as needed
@@ -291,6 +359,7 @@ static struct fuse_operations ops = {
     .getattr = wfs_getattr,
     .mknod = wfs_mknod,
     .mkdir = wfs_mkdir,
+    .unlink = wfs_unlink,
 };
 
 int main(int argc, char **argv)
