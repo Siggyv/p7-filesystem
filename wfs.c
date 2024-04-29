@@ -357,42 +357,14 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
     char * data_blocks = file_system + super_block->d_blocks_ptr;
     int safety_counter = 0;
 
+    for(int i = 0; i < N_BLOCKS; i++) {
+        printf("%d", *(d_bitmap + i));
+    }
+    printf("\n");
     // initially was a while true, but thought this would be better to avoid worse case scenarios.
-    while(safety_counter < super_block->num_data_blocks) {
-        d_bitmap = d_bitmap + parent_dir->blocks[safety_counter];
-        if(*d_bitmap == 0) {
-            // value is zero break
-            printf("bitmap val is zero...\n");
-            break;
-        }
-        // otherwise val should be 1, so fill buf
-        // get block and its information
-        struct wfs_dentry * dentry = (struct wfs_dentry *) data_blocks + parent_dir->blocks[safety_counter] * sizeof(struct wfs_dentry);
-        
-        // get subfile path for statbuf
-        char file_name[MAX_NAME];
-        strncpy(file_name, dentry->name, MAX_NAME);
-        struct stat *statbuf = (struct stat *)malloc(sizeof(struct stat));
-        memset(statbuf, 0, sizeof(struct stat));
-        int new_path_size = strlen(path) + MAX_NAME + 2;
-        char new_path_name[new_path_size];
-        strcpy(new_path_name, path);
-        strcat(new_path_name, "/");
-        strcat(new_path_name, file_name);
-
-        // populate statbuf
-        if(wfs_getattr(new_path_name, statbuf) != 0){
-            printf("Get attr failed.\n");
-            return 1;
-        }
-
-        if(fill(buf, dentry->name, statbuf, safety_counter) != 0) {
-            printf("buffer full breaking...\n");
-            printf("%s\n", dentry->name);
-            break;
-        }
-
-        safety_counter++;
+    for(int i = 0; i < N_BLOCKS; i++) {
+        // get correct bitmap number
+        int d_offset = parent_dir->blocks[i];
     }
     printf("End of readdir\n");
     return 0;
