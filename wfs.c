@@ -244,7 +244,7 @@ int handle_inode_insertion(const char *path, mode_t mode)
     // if it is a directory being inserted in, also need to add links for
     //  cd . & cd ..
     // TODO, figure out if 509 is correct
-    if (mode == (S_IFDIR | 0755))
+    if (S_ISDIR(mode))
     {
         // insert cd .
         is_inserted = insert_entry_into_directory(new_inode, ".", new_inode->num);
@@ -258,7 +258,7 @@ int handle_inode_insertion(const char *path, mode_t mode)
         {
             return -ENOSPC;
         }
-        printf("I made it here for mkdir.... path was: %s and mode was %d\n", file_name, mode);
+        // printf("I made it here for mkdir.... path was: %s and mode was %d\n", file_name, mode);
     }
     return 0;
 }
@@ -269,7 +269,6 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
     int handled_insertion = handle_inode_insertion(path, mode);
     if (handled_insertion != 0)
     {
-        printf("some error happened\n");
         return handled_insertion;
     }
     return 0; // Success
@@ -277,6 +276,8 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
 
 static int wfs_mkdir(const char *path, mode_t mode)
 {
+    printf("entering mkdir\n");
+    mode |= S_IFDIR;
     int handled_insertion = handle_inode_insertion(path, mode);
     if (handled_insertion != 0)
     {
@@ -408,7 +409,6 @@ static struct fuse_operations ops = {
   //.write   = wfs_write,
   .readdir = wfs_readdir,
 };
-
 
 int main(int argc, char **argv)
 {
