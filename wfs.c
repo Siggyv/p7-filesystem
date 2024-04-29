@@ -193,7 +193,7 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
 {
     int i = 0;
     // map the new inode in the parent directory
-    printf("Inserting for inode num: %d\n", directory->num);
+    // printf("Inserting for inode num: %d\n", directory->num);
     for (i = 0; i < N_BLOCKS; i++)
     {
         // look to find a empty entry
@@ -205,9 +205,9 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
             // copy over name and inode number
             memcpy(data_entry->name, file_name, MAX_NAME);
             data_entry->num = new_inode_num;
-            for(int j = 0; j < N_BLOCKS; j++) {
-                printf("offset {%d}: %ld\n", j, directory->blocks[i]);
-            }
+            // for(int j = 0; j < N_BLOCKS; j++) {
+            //     printf("offset {%d}: %ld\n", j, directory->blocks[i]);
+            // }
             return 0;
         }
     }
@@ -609,19 +609,19 @@ int main(int argc, char **argv)
     super_block = (struct wfs_sb *)file_system;
 
     // initate root node cd . & cd ..
-    struct wfs_inode *root_inode = get_inode("/");
-    // insert cd .
-    int is_inserted = insert_entry_into_directory(root_inode, ".", root_inode->num);
-    if (is_inserted == -1)
-    {
-        return -ENOSPC;
-    }
-    // insert cd ..
-    is_inserted = insert_entry_into_directory(root_inode, "..", root_inode->num);
-    if (is_inserted == -1)
-    {
-        return -ENOSPC;
-    }
+    // struct wfs_inode *root_inode = get_inode("/");
+    // // insert cd .
+    // int is_inserted = insert_entry_into_directory(root_inode, ".", root_inode->num);
+    // if (is_inserted == -1)
+    // {
+    //     return -ENOSPC;
+    // }
+    // // insert cd ..
+    // is_inserted = insert_entry_into_directory(root_inode, "..", root_inode->num);
+    // if (is_inserted == -1)
+    // {
+    //     return -ENOSPC;
+    // }
 
     close(fd);
     // remove disk image path from args to give to fuse main
