@@ -192,6 +192,7 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
 {
     int i = 0;
     // map the new inode in the parent directory
+    printf("Inserting for inode num: %d\n", directory->num);
     for (i = 0; i < N_BLOCKS; i++)
     {
         // look to find a empty entry
@@ -203,6 +204,9 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
             // copy over name and inode number
             memcpy(data_entry->name, file_name, MAX_NAME);
             data_entry->num = new_inode_num;
+            for(int j = 0; j < N_BLOCKS; j++) {
+                printf("offset {%d}: %ld\n", j, directory->blocks[i]);
+            }
             return 0;
         }
     }
