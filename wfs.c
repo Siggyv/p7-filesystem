@@ -120,11 +120,12 @@ struct wfs_inode *allocate_inode(mode_t mode)
     off_t upper_bound = super_block->d_bitmap_ptr;
     int free_inode_num;
     struct wfs_inode *inode_ptr;
-    // printf("first inode: %d, start: %ld, end: %ld\n",*(file_system + curr_inode_bit),curr_inode_bit,upper_bound);
+    // printf("start: %ld, end: %ld\n",curr_inode_bit,upper_bound);
 
     // loop through each inode looking for a free spot.
     while (curr_inode_bit < upper_bound)
     {
+        printf("current bit is: %d\n", *(file_system + curr_inode_bit));
         // find the first free inode
         if (*(file_system + curr_inode_bit) == 0)
         {
@@ -413,25 +414,22 @@ static int wfs_rmdir(const char *path)
     return 1;
 }
 
-	/** Read data from an open file
-	 *
-	 * Read should return exactly the number of bytes requested except
-	 * on EOF or error, otherwise the rest of the data will be
-	 * substituted with zeroes.	 An exception to this is when the
-	 * 'direct_io' mount option is specified, in which case the return
-	 * value of the read system call will reflect the return value of
-	 * this operation.
-	 *
-	 * Changed in version 2.2
-	 */
-//static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct fuse_file_info * file) {
-  //  printf("In read...\n");
+/** Read data from an open file
+ *
+ * Read should return exactly the number of bytes requested except
+ * on EOF or error, otherwise the rest of the data will be
+ * substituted with zeroes.	 An exception to this is when the
+ * 'direct_io' mount option is specified, in which case the return
+ * value of the read system call will reflect the return value of
+ * this operation.
+ *
+ * Changed in version 2.2
+ */
+// static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct fuse_file_info * file) {
+//   printf("In read...\n");
 
-
-
-
-  //  printf("Finished read...\n");
-  //  return 0; 
+//  printf("Finished read...\n");
+//  return 0;
 //}
 
 /** Read directory
@@ -455,65 +453,72 @@ static int wfs_rmdir(const char *path)
  *
  * Introduced in version 2.3
  */
-static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t offset, struct fuse_file_info *file_info) {
+static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t offset, struct fuse_file_info *file_info)
+{
     printf("In readdir\n");
-    struct wfs_inode * parent_dir = get_inode(path); // get parent_dir
+    struct wfs_inode *parent_dir = get_inode(path); // get parent_dir
     printf("parent dir %s\n", path);
-    if(parent_dir == NULL) {
+    if (parent_dir == NULL)
+    {
         return -ENOENT;
     }
     printf("After get inode\n");
     // check that it is directory
-    if(!S_ISDIR(parent_dir->mode)){
+    if (!S_ISDIR(parent_dir->mode))
+    {
         printf("%d", parent_dir->mode);
         printf("Must pass in a directory.\n");
         return 1;
     }
 
-
     // read in names, check d bitmap, once a zero is reached break out of while True
-    char * d_bitmap = file_system + super_block->d_bitmap_ptr;
-    char * data_blocks = file_system + super_block->d_blocks_ptr;
+    char *d_bitmap = file_system + super_block->d_bitmap_ptr;
+    char *data_blocks = file_system + super_block->d_blocks_ptr;
 
-    for(int i = 0; i < N_BLOCKS; i++) {
+    for (int i = 0; i < N_BLOCKS; i++)
+    {
         printf("%d", *(d_bitmap + i));
     }
     printf("\n");
     printf("inode num: %d\n", parent_dir->num);
     // initially was a while true, but thought this would be better to avoid worse case scenarios.
-    for(int i = 0; i < N_BLOCKS; i++) {
+    for (int i = 0; i < N_BLOCKS; i++)
+    {
         // get correct bitmap number
         int d_offset = parent_dir->blocks[i];
-        if(d_offset == -1) {
-            printf("d_offset: %d\n", d_offset);
+        if (d_offset == -1)
+        {
+            // printf("d_offset: %d\n", d_offset);
             continue;
         }
 
         // get bitmap value
-        int isUsed = *(d_bitmap + d_offset);
-
-        if(isUsed == 1) {
-            printf("Offset checked: %d\n", d_offset);
+        int isUsed = *(d_bitmap + d_offset / BLOCK_SIZE);
+        printf("it is used: %d\n", isUsed);
+        if (isUsed == 1)
+        {
+            // printf("Offset checked: %d\n", d_offset);
             // grab dentry from datablock
-            struct wfs_dentry *dentry = (struct wfs_dentry *) data_blocks + d_offset * sizeof(struct wfs_dentry);
+            struct wfs_dentry *dentry = (struct wfs_dentry *)(data_blocks + d_offset); // * sizeof(struct wfs_dentry);
 
             // get statbuf for fill
-            struct stat * statbuf = (struct stat *) malloc(sizeof(struct stat));
+            struct stat *statbuf = (struct stat *)malloc(sizeof(struct stat));
             char subfile_path[MAX_NAME + 2 + strlen(path)];
             strcpy(subfile_path, path);
             strcat(subfile_path, "/");
             strcat(subfile_path, dentry->name);
-            if(wfs_getattr(subfile_path, statbuf) != 0){
+            if (wfs_getattr(subfile_path, statbuf) != 0)
+            {
                 printf("ERROR with getattr\n");
                 return 1;
             }
 
             // fill
-            if(fill(buf, dentry->name, statbuf, i) != 0) {
+            if (fill(buf, dentry->name, statbuf, 0) != 0)
+            {
                 printf("Buffer is full...\n");
                 return 1;
             }
-            
         }
     }
     printf("finish readdir\n");
@@ -541,7 +546,7 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
         data_blocks_needed++;
     }
     off_t datablock;
-    char* datablock_ptr;
+    char *datablock_ptr;
     for (int i = 0; i < data_blocks_needed; i++)
     {
         // find a place to write to
@@ -550,12 +555,12 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
             {
                 datablock = allocate_datablock();
                 datablock_ptr = file_system + super_block->d_blocks_ptr + datablock;
-                //copy over memory
-                memcpy(datablock_ptr, buf+(i*BLOCK_SIZE), BLOCK_SIZE);
-                //mark block as allocated
+                // copy over memory
+                memcpy(datablock_ptr, buf + (i * BLOCK_SIZE), BLOCK_SIZE);
+                // mark block as allocated
                 inode->blocks[j] = datablock;
-                //update size
-                inode->size+=BLOCK_SIZE;
+                // update size
+                inode->size += BLOCK_SIZE;
                 break;
             }
     }
@@ -563,8 +568,6 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
 
     return size;
 }
-
-
 
 // add fuse ops here
 static struct fuse_operations ops = {
@@ -589,17 +592,6 @@ int main(int argc, char **argv)
     // get disk image path and remove from fuse args
 
     char *disk_img_path = strdup(argv[1]);
-    /*
-    for (int i = strlen(disk_img_path); i > 0; i--)
-    {
-        // replace _ with .
-        if (disk_img_path[i] == '_')
-        {
-            disk_img_path[i] = '.';
-            break;
-        }
-    }
-    */
 
     // attempt to open disk img to verify path
     int fd = open(disk_img_path, O_RDWR);
@@ -615,6 +607,21 @@ int main(int argc, char **argv)
     // setup pointers
     file_system = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0); // Corrected mmap call
     super_block = (struct wfs_sb *)file_system;
+
+    // initate root node cd . & cd ..
+    struct wfs_inode *root_inode = get_inode("/");
+    // insert cd .
+    int is_inserted = insert_entry_into_directory(root_inode, ".", root_inode->num);
+    if (is_inserted == -1)
+    {
+        return -ENOSPC;
+    }
+    // insert cd ..
+    is_inserted = insert_entry_into_directory(root_inode, "..", root_inode->num);
+    if (is_inserted == -1)
+    {
+        return -ENOSPC;
+    }
 
     close(fd);
     // remove disk image path from args to give to fuse main
