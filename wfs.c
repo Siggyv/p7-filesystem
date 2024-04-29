@@ -40,7 +40,8 @@ struct wfs_inode *get_inode(const char *path)
         for (i = 0; i < N_BLOCKS; i++)
         {
             // printf("entering each block, current block: %ld\n", curr_inode->blocks[i]);
-            if(curr_inode->blocks[i] == -1){
+            if (curr_inode->blocks[i] == -1)
+            {
                 continue;
             }
             // gets the starting offset of the datablocks, and adds the current block offset to get the datablock
@@ -61,9 +62,6 @@ struct wfs_inode *get_inode(const char *path)
 
         // if it is found, update the current node, TODO, make sure this arithmetic is correct.
         curr_inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (datablock->num * sizeof(struct wfs_inode)));
-        if(strcmp(datablock->name, "a") == 0){
-            printf(" i have found it. the block: %d exists.\n", datablock->num);
-        }
         // printf("the current node is found, and its num is: %d\n", curr_inode->num);
     }
     // printf("the current node is found, and its num is: %d\n", curr_inode->num);
@@ -104,9 +102,9 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
 // allocates an inode, and returns pointer to it.
 // sets basic attributes, inode num, uid, gid, time.
 // if not enough space, returns NULL
-struct wfs_inode *allocate_inode()
+struct wfs_inode *allocate_inode(mode_t mode)
 {
-    off_t curr_inode_bit = super_block->i_bitmap_ptr+1; // need to start at 1 index (0 means empty)
+    off_t curr_inode_bit = super_block->i_bitmap_ptr + 1; // need to start at 1 index (0 means empty)
     off_t upper_bound = super_block->d_bitmap_ptr;
     int free_inode_num;
     struct wfs_inode *inode_ptr;
@@ -124,15 +122,21 @@ struct wfs_inode *allocate_inode()
             free_inode_num = curr_inode_bit - super_block->i_bitmap_ptr;
             inode_ptr = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (free_inode_num * sizeof(struct wfs_inode)));
             // update inode basic attributes
-            printf("the inode number that is found free is: %d\n", free_inode_num);
+            // printf("the inode number that is found free is: %d\n", free_inode_num);
             inode_ptr->num = free_inode_num;
+            inode_ptr->mode = mode;
             inode_ptr->uid = getuid();
             inode_ptr->gid = getgid();
-            inode_ptr->size = 0; // initially empty
-            inode_ptr->nlinks=0; // initially empty
+            inode_ptr->size = 0;   // initially empty
+            inode_ptr->nlinks = 0; // initially empty
             inode_ptr->atim = time(NULL);
             inode_ptr->mtim = time(NULL);
             inode_ptr->ctim = time(NULL);
+            // set all blocks to unallocated
+            for (int i = 0; i < N_BLOCKS; i++)
+            {
+                inode_ptr->blocks[i] = -1;
+            }
             // returns the address of a inode pointer
             return inode_ptr;
         }
@@ -170,9 +174,34 @@ off_t allocate_datablock()
     return -1;
 }
 
-static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
+// inserts a entry into the given directory and returns 0
+// if it is full, will return -1
+int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, int new_inode_num)
 {
-    printf("\nentered mknod code function\n");
+    int i = 0;
+    // map the new inode in the parent directory
+    for (i = 0; i < N_BLOCKS; i++)
+    {
+        // look to find a empty entry
+        if (directory->blocks[i] == -1)
+        {
+            off_t new_datablock = allocate_datablock();
+            directory->blocks[i] = new_datablock;
+            struct wfs_dentry *data_entry = ((struct wfs_dentry *)(file_system + super_block->d_blocks_ptr + new_datablock));
+            // copy over name and inode number
+            memcpy(data_entry->name, file_name, MAX_NAME);
+            data_entry->num = new_inode_num;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+// handles the basic inode insertion
+// creating inode, making space for it
+// and adding the inode to the parent directory
+int handle_inode_insertion(const char *path, mode_t mode)
+{
     // last slash before path has the new inode file name/location
     //  ex: /siggy, here we would just grab siggy from this
     // or /siggy/adam, here we would just grab adam
@@ -185,14 +214,10 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
             last_slash_index = i;
         }
     }
-    // copy the string
     char *parent_path = strdup(path);
     // seperate the parent path and child path
     parent_path[last_slash_index + 1] = '\0';
     char *file_name = strdup(path + last_slash_index + 1);
-    // printf("The filename is: %s\n", file_name);
-    // printf("The parent path is: %s\n", parent_path);
-
     // get the parent, and allocate space for a new inode
     struct wfs_inode *parent = get_inode(parent_path);
     // check that parent path exists
@@ -202,25 +227,63 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
     }
 
     // allocate the new inode
-    struct wfs_inode *new_inode = allocate_inode();
-    new_inode->mode = mode;
-
-    int i = 0;
-    // map the new inode in the parent directory
-    for (i = 0; i < N_BLOCKS; i++)
+    struct wfs_inode *new_inode = allocate_inode(mode);
+    // make sure their is sufficient space for the inode
+    if (new_inode == NULL)
     {
-        if (parent->blocks[i] == -1)
-        {
-            break;
-        }
+        return -ENOSPC;
     }
-    off_t new_datablock = allocate_datablock();
-    parent->blocks[i] = new_datablock;
-    struct wfs_dentry *data_entry = ((struct wfs_dentry *)(file_system + super_block->d_blocks_ptr + new_datablock));
-    // copy over name and inode number
-    memcpy(data_entry->name, file_name, MAX_NAME);
-    data_entry->num = new_inode->num;
+
+    // insert the new node into the parent directory
+    int is_inserted = insert_entry_into_directory(parent, file_name, new_inode->num);
+    if (is_inserted == -1)
+    {
+        return -ENOSPC;
+    }
+
+    // if it is a directory being inserted in, also need to add links for
+    //  cd . & cd ..
+    // TODO, figure out if 509 is correct
+    if (mode == (S_IFDIR | 0755))
+    {
+        // insert cd .
+        is_inserted = insert_entry_into_directory(new_inode, ".", new_inode->num);
+        if (is_inserted == -1)
+        {
+            return -ENOSPC;
+        }
+        // insert cd ..
+        is_inserted = insert_entry_into_directory(new_inode, "..", parent->num);
+        if (is_inserted == -1)
+        {
+            return -ENOSPC;
+        }
+        printf("I made it here for mkdir.... path was: %s and mode was %d\n", file_name, mode);
+    }
+    return 0;
+}
+
+static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
+{
+    printf("entering mknod\n");
+    int handled_insertion = handle_inode_insertion(path, mode);
+    if (handled_insertion != 0)
+    {
+        printf("some error happened\n");
+        return handled_insertion;
+    }
     return 0; // Success
+}
+
+static int wfs_mkdir(const char *path, mode_t mode)
+{
+    int handled_insertion = handle_inode_insertion(path, mode);
+    if (handled_insertion != 0)
+    {
+        return handled_insertion;
+    }
+    return 0;
+    
 }
 
 // static int wfs_mkdir(const char *path, mode_t mode) {
@@ -276,10 +339,11 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
 static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t offset, struct fuse_file_info *file_info) {
     printf("In readdir\n");
     struct wfs_inode * parent_dir = get_inode(path); // get parent_dir
+    printf("parent dir %p\n", (void *)parent_dir);
     if(parent_dir == NULL) {
         return -ENOENT;
     }
-
+    printf("After get inode\n");
     // check that it is directory
     if(!S_ISDIR(parent_dir->mode)){
         printf("%d", parent_dir->mode);
@@ -308,6 +372,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
         char file_name[MAX_NAME];
         strncpy(file_name, dentry->name, MAX_NAME);
         struct stat *statbuf = (struct stat *)malloc(sizeof(struct stat));
+        memset(statbuf, 0, sizeof(struct stat));
         int new_path_size = strlen(path) + MAX_NAME + 2;
         char new_path_name[new_path_size];
         strcpy(new_path_name, path);
@@ -319,9 +384,10 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
             printf("Get attr failed.\n");
             return 1;
         }
-        
+
         if(fill(buf, dentry->name, statbuf, safety_counter) != 0) {
             printf("buffer full breaking...\n");
+            printf("%s\n", dentry->name);
             break;
         }
 
@@ -335,7 +401,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
 static struct fuse_operations ops = {
   .getattr = wfs_getattr,
   .mknod   = wfs_mknod,
-  //.mkdir   = wfs_mkdir,
+  .mkdir   = wfs_mkdir,
   //.unlink  = wfs_unlink,
   //.rmdir   = wfs_rmdir,
   //.read    = wfs_read,
@@ -353,7 +419,9 @@ int main(int argc, char **argv)
     }
 
     // get disk image path and remove from fuse args
+
     char *disk_img_path = strdup(argv[1]);
+    /*
     for (int i = strlen(disk_img_path); i > 0; i--)
     {
         // replace _ with .
@@ -363,6 +431,7 @@ int main(int argc, char **argv)
             break;
         }
     }
+    */
 
     // attempt to open disk img to verify path
     int fd = open(disk_img_path, O_RDWR);
@@ -389,5 +458,4 @@ int main(int argc, char **argv)
     }
     // printf("the free inode is %d\n", allocate_inode()->num);
     return fuse_main(argc - 1, fuse_args, &ops, NULL);
-    ;
 }
