@@ -199,15 +199,14 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
         // look to find a empty entry
         if (directory->blocks[i] == -1)
         {
+            printf("free block found\n");
             off_t new_datablock = allocate_datablock();
             directory->blocks[i] = new_datablock;
             struct wfs_dentry *data_entry = ((struct wfs_dentry *)(file_system + super_block->d_blocks_ptr + new_datablock));
             // copy over name and inode number
             memcpy(data_entry->name, file_name, MAX_NAME);
             data_entry->num = new_inode_num;
-            // for(int j = 0; j < N_BLOCKS; j++) {
-            //     printf("offset {%d}: %ld\n", j, directory->blocks[i]);
-            // }
+
             return 0;
         }
     }
@@ -414,24 +413,6 @@ static int wfs_rmdir(const char *path)
     return 0;
 }
 
-/** Read data from an open file
- *
- * Read should return exactly the number of bytes requested except
- * on EOF or error, otherwise the rest of the data will be
- * substituted with zeroes.	 An exception to this is when the
- * 'direct_io' mount option is specified, in which case the return
- * value of the read system call will reflect the return value of
- * this operation.
- *
- * Changed in version 2.2
- */
-// static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct fuse_file_info * file) {
-//   printf("In read...\n");
-
-//  printf("Finished read...\n");
-//  return 0;
-//}
-
 /** Read directory
  *
  * This supersedes the old getdir() interface.  New applications
@@ -525,6 +506,78 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
     return 0;
 }
 
+size_t min(size_t a, size_t b)
+{
+    return (a < b) ? a:b;
+}
+
+/** Read data from an open file
+ *
+ * Read should return exactly the number of bytes requested except
+ * on EOF or error, otherwise the rest of the data will be
+ * substituted with zeroes.	 An exception to this is when the
+ * 'direct_io' mount option is specified, in which case the return
+ * value of the read system call will reflect the return value of
+ * this operation.
+ *
+ * Changed in version 2.2
+ */
+static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct fuse_file_info * file) {
+    printf("In read method\n");
+    printf("offset passed %ld\n", offset);
+    struct wfs_inode * file_node = get_inode(path);
+    if(file_node == NULL)
+    {
+        printf("Invalid path: %s\n", path);
+        return -ENOENT;
+    }
+
+    int num_blocks_to_read = n / BLOCK_SIZE;
+    if(n % BLOCK_SIZE != 0)
+    {
+        num_blocks_to_read++;
+    }
+
+    // get start of datablocks
+    char * datablocks = (char *)(file_system + super_block->d_blocks_ptr);
+    size_t bytes_read = 0; // use to decide when to break
+    size_t block_offset = offset % BLOCK_SIZE;
+    int starting_block = offset / BLOCK_SIZE;
+    for(int i = starting_block; i < N_BLOCKS; i++)
+    {
+        if(bytes_read == n)
+        {
+            break;
+        }
+        
+        // for error checking, shouldnt have bytes_read be greater than size n
+        if(bytes_read > n)
+        {
+            printf("read in too much...\n");
+            break;
+        }
+        // printf("file node block: %d\n", file_node->blocks[i]);
+        if(file_node->blocks[i] != -1)
+        {
+            // valid block so read in this block
+            char * valid_block = datablocks + file_node->blocks[i] + block_offset;
+            size_t length_left = file_node->size - offset - bytes_read;
+            size_t end_length = min(length_left, n - bytes_read);
+            size_t num_read = min(BLOCK_SIZE - block_offset, end_length); // do either whole block or whats left.
+            printf("the valid block is: %s\n", valid_block);
+            memcpy(buf + bytes_read, valid_block, num_read);
+            printf("buf: %s\n", buf);
+            bytes_read += num_read;
+            block_offset = 0;            
+        } else {
+            break;
+        }
+    }
+
+    printf("read over: %zu for %zu requested\n", bytes_read, n);
+    return bytes_read;
+}
+
 // writes data to a inode
 static int wfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
@@ -557,6 +610,7 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
                 datablock_ptr = file_system + super_block->d_blocks_ptr + datablock;
                 // copy over memory
                 memcpy(datablock_ptr, buf + (i * BLOCK_SIZE), BLOCK_SIZE);
+                printf("the data written is %s\n",datablock_ptr);
                 // mark block as allocated
                 inode->blocks[j] = datablock;
                 // update size
@@ -564,6 +618,7 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
                 break;
             }
     }
+
     printf("everything written...\n");
 
     return size;
@@ -576,7 +631,7 @@ static struct fuse_operations ops = {
     .mkdir = wfs_mkdir,
     .unlink = wfs_unlink,
     .rmdir = wfs_rmdir,
-    //.read    = wfs_read,
+    .read    = wfs_read,
     .write = wfs_write,
     .readdir = wfs_readdir,
 };
@@ -607,21 +662,23 @@ int main(int argc, char **argv)
     // setup pointers
     file_system = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0); // Corrected mmap call
     super_block = (struct wfs_sb *)file_system;
-
     // initate root node cd . & cd ..
-    // struct wfs_inode *root_inode = get_inode("/");
-    // // insert cd .
-    // int is_inserted = insert_entry_into_directory(root_inode, ".", root_inode->num);
-    // if (is_inserted == -1)
-    // {
-    //     return -ENOSPC;
-    // }
+    struct wfs_inode *root_inode = get_inode("/");
+    //insert cd .
+    int is_inserted = insert_entry_into_directory(root_inode, ".", root_inode->num);
+    if (is_inserted == -1)
+    {
+        printf("testing\n");
+        return -ENOSPC;
+    }
+
     // // insert cd ..
-    // is_inserted = insert_entry_into_directory(root_inode, "..", root_inode->num);
-    // if (is_inserted == -1)
-    // {
+    // // is_inserted = insert_entry_into_directory(root_inode, "..", root_inode->num);
+    // // if (is_inserted == -1)
+    // // {
+    // //     printf("testingb\n");
     //     return -ENOSPC;
-    // }
+    // // }
 
     close(fd);
     // remove disk image path from args to give to fuse main
@@ -632,5 +689,8 @@ int main(int argc, char **argv)
         fuse_args[i] = argv[i + 1];
     }
     // printf("the free inode is %d\n", allocate_inode()->num);
+    for(int i = 0; i < argc - 1; i++) {
+        printf("%s\n", fuse_args[i]);
+    }
     return fuse_main(argc - 1, fuse_args, &ops, NULL);
 }
