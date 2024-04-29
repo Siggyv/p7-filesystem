@@ -196,6 +196,7 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
     }
     return -1;
 }
+
 // handles the basic inode insertion
 // creating inode, making space for it
 // and adding the inode to the parent directory
@@ -286,6 +287,7 @@ int handle_inode_insertion(const char *path, mode_t mode)
 
 static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
 {
+    printf("entering mknod\n");
     int handled_insertion = handle_inode_insertion(path, mode);
     if (handled_insertion != 0)
     {
@@ -354,11 +356,14 @@ static int wfs_unlink(const char *path)
 }
 // add fuse ops here
 static struct fuse_operations ops = {
-    // Add other functions (read, write, mkdir, etc.) here as needed
-    // usage: .function_name = c_method_name
-    .getattr = wfs_getattr,
-    .mknod = wfs_mknod,
-    .mkdir = wfs_mkdir,
+  .getattr = wfs_getattr,
+  .mknod   = wfs_mknod,
+  .mkdir   = wfs_mkdir,
+  //.unlink  = wfs_unlink,
+  //.rmdir   = wfs_rmdir,
+  //.read    = wfs_read,
+  //.write   = wfs_write,
+  .readdir = wfs_readdir,
     .unlink = wfs_unlink,
 };
 
@@ -371,7 +376,9 @@ int main(int argc, char **argv)
     }
 
     // get disk image path and remove from fuse args
+
     char *disk_img_path = strdup(argv[1]);
+    /*
     for (int i = strlen(disk_img_path); i > 0; i--)
     {
         // replace _ with .
@@ -381,6 +388,7 @@ int main(int argc, char **argv)
             break;
         }
     }
+    */
 
     // attempt to open disk img to verify path
     int fd = open(disk_img_path, O_RDWR);
@@ -407,5 +415,4 @@ int main(int argc, char **argv)
     }
     // printf("the free inode is %d\n", allocate_inode()->num);
     return fuse_main(argc - 1, fuse_args, &ops, NULL);
-    ;
 }

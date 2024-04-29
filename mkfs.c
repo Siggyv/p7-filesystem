@@ -52,7 +52,9 @@ int main(int argc, char ** argv) {
 
     // round up num blocks to nearest higher multiple of 32
     if(num_blocks % 32 != 0)
-        num_blocks = (num_blocks + 31) & ~31;
+        num_blocks = (num_blocks - num_blocks % 32) + 32;
+    if(num_inodes % 32 != 0)
+        num_inodes = (num_inodes - num_inodes % 32) + 32;
 
     // check that num of blocks is possible with disk img file size
     struct stat statbuf;
@@ -79,9 +81,9 @@ int main(int argc, char ** argv) {
     // define super block
     struct wfs_sb * superblock = (struct wfs_sb *)malloc(sizeof(struct wfs_sb));
     off_t i_map_ptr = sizeof(struct wfs_sb);
-    off_t d_map_ptr = i_map_ptr + num_inodes;
-    off_t i_block_ptr = d_map_ptr + num_blocks;
-    off_t d_block_ptr = i_block_ptr + (sizeof(struct wfs_inode) * num_inodes);
+    off_t d_map_ptr = i_map_ptr + (num_inodes/8);
+    off_t i_block_ptr = d_map_ptr + (num_blocks/8);
+    off_t d_block_ptr = i_block_ptr + (BLOCK_SIZE * num_inodes);
     superblock->num_data_blocks = num_blocks;
     superblock->num_inodes = num_inodes;
     superblock->i_bitmap_ptr = i_map_ptr;
