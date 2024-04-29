@@ -3,4 +3,5 @@ disk.img
 mkfs
 wfs
 mkfs_test
+test_prebuilt_disk
 
