@@ -86,25 +86,27 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
 
     // TODO, add all needed attributes here
     stbuf->st_ino = inode->num; // not sure if this one is correct.
-    printf("the inode number is (getattr): %ld\n",stbuf->st_ino);
+    // printf("the inode number is (getattr): %ld\n", stbuf->st_ino);
     stbuf->st_mode = inode->mode;
     stbuf->st_uid = inode->uid;
     stbuf->st_gid = inode->gid;
     stbuf->st_size = inode->size;
     stbuf->st_nlink = inode->nlinks;
-    stbuf->st_blksize=BLOCK_SIZE;
+    stbuf->st_blksize = BLOCK_SIZE;
     // time attributes
     stbuf->st_atime = inode->atim;
     stbuf->st_mtime = inode->mtim;
     stbuf->st_ctime = inode->ctim;
-    //calculate total number of blocks
+    // calculate total number of blocks
     int num_blocks = 0;
-    for(int i = 0; i < N_BLOCKS; i++){
-        if(inode->blocks[i] != -1){
+    for (int i = 0; i < N_BLOCKS; i++)
+    {
+        if (inode->blocks[i] != -1)
+        {
             num_blocks++;
         }
     }
-    stbuf->st_blocks = num_blocks; 
+    stbuf->st_blocks = num_blocks;
 
     return 0;
 }
@@ -132,7 +134,7 @@ struct wfs_inode *allocate_inode(mode_t mode)
             free_inode_num = curr_inode_bit - super_block->i_bitmap_ptr;
             inode_ptr = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (free_inode_num * sizeof(struct wfs_inode)));
             // update inode basic attributes
-            printf("the inode number that is found free is: %d\n", free_inode_num);
+            // printf("the inode number that is found free is: %d\n", free_inode_num);
             inode_ptr->num = free_inode_num;
             inode_ptr->mode = mode;
             inode_ptr->uid = getuid();
@@ -377,7 +379,7 @@ int handle_unlinking(const char *path)
     printf("the i node number is: %d and its allocation: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
     *(file_system + super_block->i_bitmap_ptr + inode->num) = 0;
     printf("the i node number is: %d and its allocation: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
-        printf("now have freed the inode\n");
+    printf("now have freed the inode\n");
 
     return 0;
 }
@@ -395,12 +397,11 @@ static int wfs_unlink(const char *path)
     return 0;
 }
 
-
 /** Remove a file */
 static int wfs_rmdir(const char *path)
 {
     int is_unlinked = handle_unlinking(path);
-    
+
     if (is_unlinked != 0)
     {
         return is_unlinked;
@@ -409,10 +410,52 @@ static int wfs_rmdir(const char *path)
     return 0;
 }
 
+// writes data to a inode
+static int wfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+{
+    // size is 1+ buffer
+    printf("now entering write..\n");
+    printf("the buff size is: %s\n", buf);
+    printf("the size is: %ld\n", size);
+
+    struct wfs_inode *inode = get_inode(path);
+    if (inode == NULL)
+    {
+        return -ENOENT;
+    }
+
+    // this may be the wrong way to do it
+    int data_blocks_needed = size / BLOCK_SIZE;
+    if (size % BLOCK_SIZE != 0)
+    {
+        data_blocks_needed++;
+    }
+    off_t datablock;
+    char* datablock_ptr;
+    for (int i = 0; i < data_blocks_needed; i++)
+    {
+        // find a place to write to
+        for (int j = 0; j < N_BLOCKS; j++)
+            if (inode->blocks[j] == -1)
+            {
+                datablock = allocate_datablock();
+                datablock_ptr = file_system + super_block->d_blocks_ptr + datablock;
+                //copy over memory
+                memcpy(datablock_ptr, buf+(i*BLOCK_SIZE), BLOCK_SIZE);
+                //mark block as allocated
+                inode->blocks[j] = datablock;
+                //update size
+                inode->size+=BLOCK_SIZE;
+                break;
+            }
+    }
+    printf("everything written...\n");
+
+    return size;
+}
 
 
-int (*write) (const char *, const char *, size_t, off_t,
-		      struct fuse_file_info *);
+
 // add fuse ops here
 static struct fuse_operations ops = {
     .getattr = wfs_getattr,
@@ -421,8 +464,8 @@ static struct fuse_operations ops = {
     .unlink = wfs_unlink,
     .rmdir = wfs_rmdir,
     //.read    = wfs_read,
-    .write   = wfs_write,
-    //   .readdir = wfs_readdir,
+    .write = wfs_write,
+    .readdir = wfs_readdir,
 };
 
 int main(int argc, char **argv)
