@@ -125,7 +125,7 @@ struct wfs_inode *allocate_inode(mode_t mode)
     // loop through each inode looking for a free spot.
     while (curr_inode_bit < upper_bound)
     {
-        printf("current bit is: %d\n", *(file_system + curr_inode_bit));
+        // printf("current bit is: %d\n", *(file_system + curr_inode_bit));
         // find the first free inode
         if (*(file_system + curr_inode_bit) == 0)
         {
@@ -377,10 +377,10 @@ int handle_unlinking(const char *path)
 
     //  unallocate it in the inode bitmap
     // //set this inode to free in inode bitmap
-    printf("the i node number is: %d and its allocation: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
+    // printf("the i node number is: %d and its allocationow haven: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
     *(file_system + super_block->i_bitmap_ptr + inode->num) = 0;
-    printf("the i node number is: %d and its allocation: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
-    printf("now have freed the inode\n");
+    // printf("the i node number is: %d and its allocation: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
+    // printf("now have freed the inode\n");
 
     return 0;
 }
@@ -407,7 +407,7 @@ static int wfs_rmdir(const char *path)
     {
         return is_unlinked;
     }
-    return 1;
+    return 0;
 }
 
 /** Read data from an open file
@@ -451,14 +451,14 @@ static int wfs_rmdir(const char *path)
  */
 static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t offset, struct fuse_file_info *file_info)
 {
-    printf("In readdir\n");
+    // printf("In readdir\n");
     struct wfs_inode *parent_dir = get_inode(path); // get parent_dir
-    printf("parent dir %s\n", path);
+    // printf("parent dir %s\n", path);
     if (parent_dir == NULL)
     {
         return -ENOENT;
     }
-    printf("After get inode\n");
+    // printf("After get inode\n");
     // check that it is directory
     if (!S_ISDIR(parent_dir->mode))
     {
@@ -471,12 +471,12 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
     char *d_bitmap = file_system + super_block->d_bitmap_ptr;
     char *data_blocks = file_system + super_block->d_blocks_ptr;
 
-    for (int i = 0; i < N_BLOCKS; i++)
-    {
-        printf("%d", *(d_bitmap + i));
-    }
-    printf("\n");
-    printf("inode num: %d\n", parent_dir->num);
+    // for (int i = 0; i < N_BLOCKS; i++)
+    // {
+    //     printf("%d", *(d_bitmap + i));
+    // }
+    // printf("\n");
+    // printf("inode num: %d\n", parent_dir->num);
     // initially was a while true, but thought this would be better to avoid worse case scenarios.
     for (int i = 0; i < N_BLOCKS; i++)
     {
@@ -490,7 +490,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
 
         // get bitmap value
         int isUsed = *(d_bitmap + d_offset / BLOCK_SIZE);
-        printf("it is used: %d\n", isUsed);
+        // printf("it is used: %d\n", isUsed);
         if (isUsed == 1)
         {
             // printf("Offset checked: %d\n", d_offset);
@@ -517,7 +517,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
             }
         }
     }
-    printf("finish readdir\n");
+    // printf("finish readdir\n");
     return 0;
 }
 
