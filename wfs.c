@@ -82,19 +82,31 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
 
     // printf("the path is %s, and the inode fetched num is: %d, and uid: %d\n", path, inode->num, inode->uid);
 
-    // printf("the inode number is: %d\n",inode->num);
+    // printf("the inode number is (getattr): %d\n",inode->num);
+
     // TODO, add all needed attributes here
     stbuf->st_ino = inode->num; // not sure if this one is correct.
+    // printf("the inode number is (getattr): %ld\n", stbuf->st_ino);
     stbuf->st_mode = inode->mode;
     stbuf->st_uid = inode->uid;
     stbuf->st_gid = inode->gid;
     stbuf->st_size = inode->size;
     stbuf->st_nlink = inode->nlinks;
+    stbuf->st_blksize = BLOCK_SIZE;
     // time attributes
     stbuf->st_atime = inode->atim;
     stbuf->st_mtime = inode->mtim;
     stbuf->st_ctime = inode->ctim;
-    stbuf->st_blocks = N_BLOCKS; // not sure if this one is write either, probably need to check which are allocated.
+    // calculate total number of blocks
+    int num_blocks = 0;
+    for (int i = 0; i < N_BLOCKS; i++)
+    {
+        if (inode->blocks[i] != -1)
+        {
+            num_blocks++;
+        }
+    }
+    stbuf->st_blocks = num_blocks;
 
     return 0;
 }
@@ -200,12 +212,9 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
 // handles the basic inode insertion
 // creating inode, making space for it
 // and adding the inode to the parent directory
-int handle_inode_insertion(const char *path, mode_t mode)
-{
-    // last slash before path has the new inode file name/location
-    //  ex: /siggy, here we would just grab siggy from this
-    // or /siggy/adam, here we would just grab adam
 
+char *get_parent_path(const char *path)
+{
     int last_slash_index;
     for (int i = 0; i < strlen(path) - 1; i++)
     {
@@ -217,7 +226,32 @@ int handle_inode_insertion(const char *path, mode_t mode)
     char *parent_path = strdup(path);
     // seperate the parent path and child path
     parent_path[last_slash_index + 1] = '\0';
+
+    return parent_path;
+}
+
+char *get_file_name(const char *path)
+{
+    int last_slash_index;
+    for (int i = 0; i < strlen(path) - 1; i++)
+    {
+        if (path[i] == '/')
+        {
+            last_slash_index = i;
+        }
+    }
     char *file_name = strdup(path + last_slash_index + 1);
+    return file_name;
+}
+
+int handle_inode_insertion(const char *path, mode_t mode)
+{
+    // last slash before path has the new inode file name/location
+    //  ex: /siggy, here we would just grab siggy from this
+    // or /siggy/adam, here we would just grab adam
+
+    char *file_name = get_file_name(path);
+    char *parent_path = get_parent_path(path);
     // get the parent, and allocate space for a new inode
     struct wfs_inode *parent = get_inode(parent_path);
     // check that parent path exists
@@ -265,7 +299,6 @@ int handle_inode_insertion(const char *path, mode_t mode)
 
 static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
 {
-    printf("entering mknod\n");
     int handled_insertion = handle_inode_insertion(path, mode);
     if (handled_insertion != 0)
     {
@@ -276,24 +309,105 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
 
 static int wfs_mkdir(const char *path, mode_t mode)
 {
-    printf("entering mkdir\n");
+    // printf("entering mkdir\n");
+    // set the mode to directory
     mode |= S_IFDIR;
     int handled_insertion = handle_inode_insertion(path, mode);
     if (handled_insertion != 0)
     {
         return handled_insertion;
     }
-    return 0;
-    
+    return 0; // Success
 }
 
-// static int wfs_mkdir(const char *path, mode_t mode) {
-//     // Implementation of getattr function to retrieve file attributes
-//     // Fill stbuf structure with the attributes of the file/directory indicated by path
-//     // ...
-//     printf("in mkdir\n");
-//     return 0; // Return 0 on success
-// }
+// finds and removes an entry given by name, returns 0
+// if entry is not found, will return -1
+int find_and_remove_data_entry_from_directory(struct wfs_inode *directory, char *file_name)
+{
+    // search for entry
+    off_t curr_offset;
+    struct wfs_dentry *curr_entry;
+    for (int i = 0; i < N_BLOCKS; i++)
+    {
+        curr_offset = directory->blocks[i];
+        // not 100% sure if this is correct..
+        curr_entry = (struct wfs_dentry *)(file_system + super_block->d_blocks_ptr + curr_offset);
+        if (strcmp(curr_entry->name, file_name) == 0)
+        {
+            // remove entry data (set to -1)
+            directory->blocks[i] = -1;
+            // set this offset to free in bitmap, since the offsets are in index*512, have to divide
+            *(file_system + super_block->d_bitmap_ptr + (curr_offset / 512)) = 0;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+int handle_unlinking(const char *path)
+{
+    char *parent_path = get_parent_path(path);
+    struct wfs_inode *parent = get_inode(parent_path);
+
+    char *file_name = get_file_name(path);
+    struct wfs_inode *inode = get_inode(file_name);
+    // if it is a directory, first need to remove cd . & cd ..
+    int is_unlinked;
+    if (S_ISDIR(inode->mode))
+    {
+        is_unlinked = find_and_remove_data_entry_from_directory(inode, ".");
+        if (is_unlinked == -1)
+        {
+            return -EEXIST;
+        }
+        find_and_remove_data_entry_from_directory(inode, "..");
+        if (is_unlinked == -1)
+        {
+            return -EEXIST;
+        }
+    }
+
+    // unlink from parent directory, remove entry from data bitmap and inode bitmap
+    is_unlinked = find_and_remove_data_entry_from_directory(parent, file_name);
+    if (is_unlinked == -1)
+    {
+        return -EEXIST;
+    }
+
+    //  unallocate it in the inode bitmap
+    // //set this inode to free in inode bitmap
+    printf("the i node number is: %d and its allocation: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
+    *(file_system + super_block->i_bitmap_ptr + inode->num) = 0;
+    printf("the i node number is: %d and its allocation: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
+    printf("now have freed the inode\n");
+
+    return 0;
+}
+
+/** Remove a file */
+static int wfs_unlink(const char *path)
+{
+    int is_unlinked = handle_unlinking(path);
+
+    if (is_unlinked != 0)
+    {
+        return is_unlinked;
+    }
+
+    return 0;
+}
+
+/** Remove a file */
+static int wfs_rmdir(const char *path)
+{
+    int is_unlinked = handle_unlinking(path);
+
+    if (is_unlinked != 0)
+    {
+        return is_unlinked;
+    }
+    return 1;
+}
 
 	/** Read data from an open file
 	 *
@@ -398,20 +512,66 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
             
         }
     }
-    printf("End of readdir\n");
+    printf("finish readdir\n");
     return 0;
 }
 
+// writes data to a inode
+static int wfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
+{
+    // size is 1+ buffer
+    printf("now entering write..\n");
+    printf("the buff size is: %s\n", buf);
+    printf("the size is: %ld\n", size);
+
+    struct wfs_inode *inode = get_inode(path);
+    if (inode == NULL)
+    {
+        return -ENOENT;
+    }
+
+    // this may be the wrong way to do it
+    int data_blocks_needed = size / BLOCK_SIZE;
+    if (size % BLOCK_SIZE != 0)
+    {
+        data_blocks_needed++;
+    }
+    off_t datablock;
+    char* datablock_ptr;
+    for (int i = 0; i < data_blocks_needed; i++)
+    {
+        // find a place to write to
+        for (int j = 0; j < N_BLOCKS; j++)
+            if (inode->blocks[j] == -1)
+            {
+                datablock = allocate_datablock();
+                datablock_ptr = file_system + super_block->d_blocks_ptr + datablock;
+                //copy over memory
+                memcpy(datablock_ptr, buf+(i*BLOCK_SIZE), BLOCK_SIZE);
+                //mark block as allocated
+                inode->blocks[j] = datablock;
+                //update size
+                inode->size+=BLOCK_SIZE;
+                break;
+            }
+    }
+    printf("everything written...\n");
+
+    return size;
+}
+
+
+
 // add fuse ops here
 static struct fuse_operations ops = {
-  .getattr = wfs_getattr,
-  .mknod   = wfs_mknod,
-  .mkdir   = wfs_mkdir,
-  //.unlink  = wfs_unlink,
-  //.rmdir   = wfs_rmdir,
-  //.read    = wfs_read,
-  //.write   = wfs_write,
-  .readdir = wfs_readdir,
+    .getattr = wfs_getattr,
+    .mknod = wfs_mknod,
+    .mkdir = wfs_mkdir,
+    .unlink = wfs_unlink,
+    .rmdir = wfs_rmdir,
+    //.read    = wfs_read,
+    .write = wfs_write,
+    .readdir = wfs_readdir,
 };
 
 int main(int argc, char **argv)
