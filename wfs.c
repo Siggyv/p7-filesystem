@@ -515,7 +515,6 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
 
     if (parent_dir == NULL)
     {
-        printf("issue here\n");
         return -ENOENT;
     }
     // printf("After get inode\n");
@@ -545,14 +544,12 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
         // every block (512 bytes) has 16 possible dentries.
         for (j = 0; j < BLOCK_SIZE/sizeof(struct wfs_dentry); j++)
         {
-            printf("block: %d, offset: %d dentry is: %s\n", i,j,dentry->name);
             // calculate the address of the entry
             dentry = (struct wfs_dentry *)(file_system + d_offset + (j*sizeof(struct wfs_dentry)));
             // if it is not an empty string (valid), add it
             if (strcmp(dentry->name, "") != 0)
             {
                 // printf("block: %d, offset: %d dentry is: %s\n", i,j,dentry->name);
-                printf("dentry: %s\n", dentry->name);
                 // get statbuf for fill
                 struct stat *statbuf = (struct stat *)malloc(sizeof(struct stat));
                 // concat the entire path, path/dentry
@@ -580,7 +577,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
             }
         }
     }
-    printf("finish readdir\n");
+    printf("finished readdir\n");
     return 0;
 }
 
@@ -602,7 +599,6 @@ size_t min(size_t a, size_t b)
  */
 static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct fuse_file_info * file) {
     printf("In read method\n");
-    printf("offset passed %ld\n", offset);
     struct wfs_inode *file_node = get_inode(path);
     if (file_node == NULL)
     {
@@ -661,8 +657,6 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
 {
     // size is 1+ buffer
     printf("now entering write..\n");
-    printf("the buff size is: %s\n", buf);
-    printf("the size is: %ld\n", size);
 
     struct wfs_inode *inode = get_inode(path);
     if (inode == NULL)
@@ -682,7 +676,7 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
     {
         // find a place to write to
         for (int j = 0; j < N_BLOCKS; j++)
-            if (inode->blocks[j] == -1)
+            if (inode->blocks[j] == 0)
             {
                 datablock = allocate_datablock();
                 datablock_ptr = file_system + datablock;
@@ -698,7 +692,6 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
     }
 
     printf("everything written...\n");
-
     return size;
 }
 
