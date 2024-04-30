@@ -178,7 +178,7 @@ off_t allocate_datablock()
     {
 
         // get the char pointer to this byte
-        curr_data_byte = curr_datablock_bit + i;
+        curr_data_byte = file_system + curr_datablock_bit + i;
         // loop over each bit, checking if they are 1
         for (j = 0; j < 8; j++)
         {
@@ -402,8 +402,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
     // printf("In readdir: %s\n", path);
     struct wfs_inode *parent_dir = get_inode(path); // get parent_dir
     // printf("the inode is: %d\n", parent_dir->num);
-    char *d_bitmap = file_system + super_block->d_bitmap_ptr;
-    char *data_blocks = file_system + super_block->d_blocks_ptr;
+  
 
     if (parent_dir == NULL)
     {
