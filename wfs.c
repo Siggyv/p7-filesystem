@@ -129,6 +129,7 @@ struct wfs_inode *allocate_inode(mode_t mode)
     struct wfs_inode * inode_ptr = NULL;
     for(int i  = 0; i < (super_block->num_inodes / 8); i++)
     {
+        // search by byte over i_bitmap
         char * currByte = (bitmap + i);
         for(int j = 0; j < 8; j++)
         {
@@ -177,24 +178,39 @@ off_t allocate_datablock()
 // if it is full, will return -1
 int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, int new_inode_num)
 {
-    // printf("the current node num is: %d\n", directory->num);
-    int i = 0;
-    // map the new inode in the parent directory
-    // printf("Inserting for inode num: %d\n", directory->num);
-    for (i = 0; i < N_BLOCKS; i++)
+    struct wfs_dentry * currBlock;
+    // search through blocks to find viable spots in created blocks
+    for (int i = 0; i < N_BLOCKS; i++)
     {
-        // printf("current block: %ld\n", directory->blocks[i]);
-        // look to find a empty entry
-        if (directory->blocks[i] == -1)
+        // since searching left to right, check if not allocated first.
+        if(directory->blocks[i] == -1)
         {
             off_t new_datablock = allocate_datablock();
             directory->blocks[i] = new_datablock;
-            struct wfs_dentry *data_entry = ((struct wfs_dentry *)(file_system + new_datablock));
-            // copy over name and inode number
-            memcpy(data_entry->name, file_name, MAX_NAME);
-            data_entry->num = new_inode_num;
-
+            struct wfs_dentry * new_entry = (struct wfs_dentry *)(file_system + new_datablock);
+            
+            memcpy(new_entry->name, file_name, MAX_NAME);
+            new_entry->num = new_inode_num;
+            
             return 0;
+
+        } else 
+        {
+            // if allocated search for open entry.
+            currBlock = (struct wfs_dentry *) (file_system + directory->blocks[i]);
+
+            // check within block for empty name, if empty set to new file name and num
+            for(int j = 0; j < BLOCK_SIZE; j += sizeof(struct wfs_dentry))
+            {
+                currBlock = (struct wfs_dentry *)((char *)currBlock + j);
+                if(strcmp(currBlock->name, "") == 0)
+                {
+                    memcpy(currBlock->name, file_name, MAX_NAME);
+                    currBlock->num = new_inode_num;
+
+                    return 0; // much success
+                }
+            }
         }
     }
     return -1;
@@ -237,19 +253,77 @@ char *get_file_name(const char *path)
 
 int handle_inode_insertion(const char *path, mode_t mode)
 {
-    
+    // last slash before path has the new inode file name/location
+    //  ex: /siggy, here we would just grab siggy from this
+    // or /siggy/adam, here we would just grab adam
+
+    char *file_name = get_file_name(path);
+    char *parent_path = get_parent_path(path);
+    // get the parent, and allocate space for a new inode
+    struct wfs_inode *parent = get_inode(parent_path);
+    // check that parent path exists
+    if (parent == NULL)
+    {
+        return -ENOENT;
+    }
+
+    // allocate the new inode
+    struct wfs_inode *new_inode = allocate_inode(mode);
+    // make sure their is sufficient space for the inode
+    if (new_inode == NULL)
+    {
+        return -ENOSPC;
+    }
+
+    // insert the new node into the parent directory
+    int is_inserted = insert_entry_into_directory(parent, file_name, new_inode->num);
+    if (is_inserted == -1)
+    {
+        return -ENOSPC;
+    }
+
+    // if it is a directory being inserted in, also need to add links for
+    //  cd . & cd ..
+    // TODO, figure out if 509 is correct
+    if (S_ISDIR(mode))
+    {
+        // insert cd .
+        is_inserted = insert_entry_into_directory(new_inode, ".", new_inode->num);
+        if (is_inserted == -1)
+        {
+            return -ENOSPC;
+        }
+        // insert cd ..
+        is_inserted = insert_entry_into_directory(new_inode, "..", parent->num);
+        if (is_inserted == -1)
+        {
+            return -ENOSPC;
+        }
+        // printf("I made it here for mkdir.... path was: %s and mode was %d\n", file_name, mode);
+    }
     return 0;
 }
 
 static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
 {
-    
+    int handled_insertion = handle_inode_insertion(path, mode);
+    if (handled_insertion != 0)
+    {
+        return handled_insertion;
+    }
     return 0; // Success
 }
 
 static int wfs_mkdir(const char *path, mode_t mode)
 {
-    
+    // printf("entering mkdir\n");
+    // set the mode to directory
+    mode |= S_IFDIR;
+    int handled_insertion = handle_inode_insertion(path, mode);
+    if (handled_insertion != 0)
+    {
+        return handled_insertion;
+    }
     return 0; // Success
 }
 
@@ -257,7 +331,21 @@ static int wfs_mkdir(const char *path, mode_t mode)
 // if entry is not found, will return -1
 int find_and_remove_data_entry_from_directory(struct wfs_inode *directory, char *file_name)
 {
-    
+    // search for entry
+    char * curr_datablock = file_system;
+    for(int i = 0; i < N_BLOCKS; i++)
+    {
+        // continue over non-available data blocks.
+        if(directory->blocks[i] == -1) continue;
+
+        curr_datablock += directory->blocks[i];
+
+        // loop over data entries to find within block
+        for(int j = 0; j < BLOCK_SIZE; j+= sizeof(struct wfs_dentry))
+        {
+            printf("blah\n");
+        }
+    }
     return -1;
 }
 
