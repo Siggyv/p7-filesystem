@@ -358,7 +358,8 @@ static int wfs_mkdir(const char *path, mode_t mode)
     return 0; // Success
 }
 
-
+// bitmap is the specific bitmap pointer
+// value is the value to set in the idx specified
 // isBlocks is a boolean to decide which number of inodes or number of blocks to use.
 int setbitmap(char * bitmap, int value, int idx, int isBlocks)
 {
@@ -370,7 +371,12 @@ int setbitmap(char * bitmap, int value, int idx, int isBlocks)
         {
             if((i * 8 + j) == idx)
             {
-                *(currByte) |= (value << j);
+                if(value == 1)
+                {
+                    *(currByte) |= (value << j);
+                } else {
+                    *(currByte) &= ~(1 << j);
+                }
                 return value;
             }
         }
@@ -378,6 +384,18 @@ int setbitmap(char * bitmap, int value, int idx, int isBlocks)
     return -1;
 }
 
+void printbitmap(char * bitmap, int isBlocks)
+{
+    int size = (isBlocks) ? super_block->num_data_blocks:super_block->num_inodes;
+    for(int i = 0; i < (size/8); i++)
+    {
+        char byte = *(bitmap + i);
+        for(int j = 0; j < 8; j++)
+        {
+            printf("idx: %d and val: %d\n", (i*8 + j), byte >> j & 1);
+        }
+    }
+}
 // finds and removes an entry given by name, returns 0
 // if entry is not found, will return -1
 int delete(struct wfs_inode *directory, char *file_name)
@@ -385,7 +403,8 @@ int delete(struct wfs_inode *directory, char *file_name)
     printf("find and remove dir\n");
     // search for entry
     char * curr_datablock = file_system;
-    char * bitmap = file_system + super_block->d_bitmap_ptr;
+   // char * dbitmap = file_system + super_block->d_bitmap_ptr;
+    char * ibitmap = file_system + super_block->i_bitmap_ptr;
     for(int i = 0; i < N_BLOCKS; i++)
     {
         // continue over non-available data blocks.
@@ -405,10 +424,10 @@ int delete(struct wfs_inode *directory, char *file_name)
                 memset(entry,0,sizeof(struct wfs_dentry));
 
                 // set bitmap idx to 0
-                int bitmap_idx = (directory->blocks[i] - (super_block->d_blocks_ptr)) / BLOCK_SIZE;
-                printf("Idx set: %d\n", bitmap_idx);
-                int rc = setbitmap(bitmap, 0, bitmap_idx, 1);
-                printf("bitmap set rc: %d\n", rc);
+                // int bitmap_idx = (directory->blocks[i] - (super_block->d_blocks_ptr)) / BLOCK_SIZE;
+                // printf("Idx set: %d\n", bitmap_idx);
+                // int rc = setbitmap(dbitmap, 0, bitmap_idx, 1);
+                // printf("bitmap set rc: %d\n", rc);
 
                 // get inode
                 struct wfs_inode * inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (node_num * BLOCK_SIZE));
@@ -416,7 +435,7 @@ int delete(struct wfs_inode *directory, char *file_name)
                 memset(inode, 0, BLOCK_SIZE);
 
                 // inode bitmap set to 0
-                setbitmap(bitmap, 0, inode_idx, 0);
+                setbitmap(ibitmap, 0, inode_idx, 0);
             }   
         }
 
@@ -431,22 +450,9 @@ int handle_unlinking(const char *path)
     struct wfs_inode *parent = get_inode(parent_path);
 
     char *file_name = get_file_name(path);
-    struct wfs_inode *inode = get_inode(file_name);
+   // struct wfs_inode *inode = get_inode(file_name);
     // if it is a directory, first need to remove cd . & cd ..
     int is_unlinked;
-    if (S_ISDIR(inode->mode))
-    {
-        is_unlinked = delete(inode, ".");
-        if (is_unlinked == -1)
-        {
-            return -EEXIST;
-        }
-        delete(inode, "..");
-        if (is_unlinked == -1)
-        {
-            return -EEXIST;
-        }
-    }
 
     // unlink from parent directory, remove entry from data bitmap and inode bitmap
     is_unlinked = delete(parent, file_name);
@@ -458,7 +464,7 @@ int handle_unlinking(const char *path)
     //  unallocate it in the inode bitmap
     // //set this inode to free in inode bitmap
     // printf("the i node number is: %d and its allocationow haven: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
-    *(file_system + super_block->i_bitmap_ptr + inode->num) = 0;
+   // setbitmap((char *)(file_system + super_block->i_bitmap_ptr), 0, inode->num, 0);
     // printf("the i node number is: %d and its allocation: %d\n", inode->num, *(file_system + super_block->i_bitmap_ptr + inode->num));
     // printf("now have freed the inode\n");
 
