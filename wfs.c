@@ -432,10 +432,27 @@ int delete(struct wfs_inode *directory, char *file_name)
                 int inode_idx = inode->num;
                 for(int k = 0; k < N_BLOCKS; k++)
                 {
-                    if(inode->blocks[i] != 0)
+                    if(inode->blocks[k] != 0)
                     {
+                        if(k == N_BLOCKS - 1)
+                        {
+                            // get block of data ptrs
+                            off_t * offset = (off_t *)(file_system + inode->blocks[i]);
+                            for(int l = 0; l < (BLOCK_SIZE / sizeof(off_t)); l++)
+                            {
+                                if(*offset == 0) continue;
+
+                                // get and set block index in bitmap to 0.
+                                int block_idx = (*offset - super_block->d_blocks_ptr) / BLOCK_SIZE;
+                                setbitmap(dbitmap, 0, block_idx, 1);
+
+
+                                // advance offset node
+                                offset += 1;
+                            }
+                        }
                         // get dblock index and set bitmap to indicate freed
-                        int idx = (inode->blocks[i] - super_block->d_blocks_ptr) / BLOCK_SIZE;
+                        int idx = (inode->blocks[k] - super_block->d_blocks_ptr) / BLOCK_SIZE;
                         
                         // set idx in dbitmap to zero
                         setbitmap(dbitmap, 0, idx, 1);
