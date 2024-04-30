@@ -101,12 +101,16 @@ int main(int argc, char ** argv) {
     inode->mode = S_IFDIR | 0755; // directory with rwx for all users. Piazza said it doesnt really matter what permissions we give it.
     inode->uid = 0;
     inode->gid = 0;
-    inode->size = 0; // for . and .. dirs
-    inode->nlinks = 0;
+    inode->size = 2 * sizeof(struct wfs_dentry); // for . and .. dirs
+    inode->nlinks = 2;
     inode->atim = inode->mtim = inode->ctim = time(NULL);
     for(int i = 0; i < N_BLOCKS; i++) {
         inode->blocks[i] = -1; // updated as a block at offset 0 is possible.
     }
+
+    // create inodes for . and ..
+    
+    
 
     // write at correct spot
     lseek(fd, superblock->i_blocks_ptr, SEEK_SET);
