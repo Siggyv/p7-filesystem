@@ -401,7 +401,7 @@ int delete(struct wfs_inode *directory, char *file_name)
     printf("find and remove dir\n");
     // search for entry
     char * curr_datablock = file_system;
-   // char * dbitmap = file_system + super_block->d_bitmap_ptr;
+    char * dbitmap = file_system + super_block->d_bitmap_ptr;
     char * ibitmap = file_system + super_block->i_bitmap_ptr;
     for(int i = 0; i < N_BLOCKS; i++)
     {
@@ -430,6 +430,17 @@ int delete(struct wfs_inode *directory, char *file_name)
                 // get inode
                 struct wfs_inode * inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (node_num * BLOCK_SIZE));
                 int inode_idx = inode->num;
+                for(int k = 0; k < N_BLOCKS; k++)
+                {
+                    if(inode->blocks[i] != 0)
+                    {
+                        // get dblock index and set bitmap to indicate freed
+                        int idx = (inode->blocks[i] - super_block->d_blocks_ptr) / BLOCK_SIZE;
+                        
+                        // set idx in dbitmap to zero
+                        setbitmap(dbitmap, 0, idx, 1);
+                    }
+                }
                 memset(inode, 0, BLOCK_SIZE);
 
                 // inode bitmap set to 0
