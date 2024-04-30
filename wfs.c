@@ -18,7 +18,7 @@ struct wfs_sb *super_block;
 struct wfs_inode *get_inode(const char *path)
 {
 
-    printf("the path is: %s\n", path);
+    // printf("the path is: %s\n", path);
     // fetch the root inode
     struct wfs_inode *curr_inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr);
     // loop through the path
@@ -53,7 +53,6 @@ struct wfs_inode *get_inode(const char *path)
                 // printf("Entry name: %s and the token: %s\n", entry->name, token);
                 if(strcmp(entry->name, token) == 0)
                 {
-                    printf("the file is found\n");
                     found = 1;
                     break;
                 }
@@ -435,10 +434,11 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
         }
 
         // every block (512 bytes) has 16 possible dentries.
-        for (j = 0; j < BLOCK_SIZE / sizeof(struct wfs_dentry); j+=sizeof(struct wfs_dentry))
+        for (j = 0; j < BLOCK_SIZE; j+=sizeof(struct wfs_dentry))
         {
             // calculate the address of the entry
             dentry = (struct wfs_dentry *)(file_system + d_offset + j);
+            // printf("block: %d, offset: %d dentry is: %s\n", i,j,dentry->name);
             // if it is not an empty string (valid), add it
             if (strcmp(dentry->name, "") != 0)
             {
