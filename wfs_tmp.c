@@ -356,20 +356,6 @@ int handle_unlinking(const char *path)
     char *file_name = get_file_name(path);
     struct wfs_inode *inode = get_inode(file_name);
     // if it is a directory, first need to remove cd . & cd ..
-    int is_unlinked;
-    if (S_ISDIR(inode->mode))
-    {
-        is_unlinked = find_and_remove_data_entry_from_directory(inode, ".");
-        if (is_unlinked == -1)
-        {
-            return -EEXIST;
-        }
-        find_and_remove_data_entry_from_directory(inode, "..");
-        if (is_unlinked == -1)
-        {
-            return -EEXIST;
-        }
-    }
 
     // unlink from parent directory, remove entry from data bitmap and inode bitmap
     is_unlinked = find_and_remove_data_entry_from_directory(parent, file_name);
