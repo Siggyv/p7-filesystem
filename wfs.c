@@ -21,6 +21,9 @@ struct wfs_inode *get_inode(const char *path)
     // printf("the path is: %s\n", path);
     // fetch the root inode
     struct wfs_inode *curr_inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr);
+    // printf("the root inode is: %d\n", curr_inode->num);
+    // printf("size of size: %ld\n", curr_inode->size);
+    // printf("size of links: %d\n", curr_inode->nlinks);
     // loop through the path
     char *token;
     char *copy_path = strdup(path);
@@ -70,8 +73,9 @@ struct wfs_inode *get_inode(const char *path)
             return NULL;
         }
 
+        // printf("the entry num: %d\n", entry->num);
         // if it is found, update the current node, TODO, make sure this arithmetic is correct.
-        curr_inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (entry->num * sizeof(struct wfs_inode)));
+        curr_inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (entry->num * BLOCK_SIZE));
         // printf("the current node is found, and its num is: %d\n", curr_inode->num);
     }
     // printf("the current node is found, and its num is: %d\n", curr_inode->num);
@@ -140,7 +144,7 @@ struct wfs_inode *allocate_inode(mode_t mode)
                 // found free spot, set to 1 and create inode
                 *currByte |= (1 << j);
                 idx = (i * 8) + j;
-                inode_ptr = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (idx * sizeof(struct wfs_inode)));
+                inode_ptr = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (idx * BLOCK_SIZE));
                 // update inode basic attributes
                 // printf("the inode number that is found free is: %d\n", free_inode_num);
                 inode_ptr->num = idx;
@@ -448,12 +452,12 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
                 // concat the entire path, path/dentry
                 char subfile_path[MAX_NAME + 2 + strlen(path)];
                 strcpy(subfile_path, path);
-                printf("path: %s\n", subfile_path);
+                // printf("path: %s\n", subfile_path);
                 strcat(subfile_path, "/");
-                printf("path with paren: %s\n", subfile_path);
-                printf("file name: %s\n", dentry->name);
+                // printf("path with parent: %s\n", subfile_path);
+                // printf("file name: %s\n", dentry->name);
                 strcat(subfile_path, dentry->name);
-                printf("subfile path: %s\n", subfile_path);
+                // printf("subfile path: %s\n", subfile_path);
                 // fill the statbuf with the stats about this node
                 if (wfs_getattr(subfile_path, statbuf) != 0)
                 {
@@ -470,7 +474,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
             }
         }
     }
-    // printf("finish readdir\n");
+    printf("finish readdir\n");
     return 0;
 }
 
@@ -575,7 +579,7 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
             if (inode->blocks[j] == -1)
             {
                 datablock = allocate_datablock();
-                datablock_ptr = file_system + super_block->d_blocks_ptr + datablock;
+                datablock_ptr = file_system + datablock;
                 // copy over memory
                 memcpy(datablock_ptr, buf + (i * BLOCK_SIZE), BLOCK_SIZE);
                 printf("the data written is %s\n",datablock_ptr);
