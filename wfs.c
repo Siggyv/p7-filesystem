@@ -151,9 +151,9 @@ struct wfs_inode *allocate_inode(mode_t mode)
                 inode_ptr->mtim = time(NULL);
                 inode_ptr->ctim = time(NULL);
                 // set all blocks to unallocated
-                for (int i = 0; i < N_BLOCKS; i++)
+                for (int k = 0; k < N_BLOCKS; k++)
                 {
-                    inode_ptr->blocks[i] = -1;
+                    inode_ptr->blocks[k] = -1;
                 }
                 // returns the address of a inode pointer
                 return inode_ptr;
