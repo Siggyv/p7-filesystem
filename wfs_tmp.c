@@ -326,7 +326,7 @@ static int wfs_mkdir(const char *path, mode_t mode)
 
 // finds and removes an entry given by name, returns 0
 // if entry is not found, will return -1
-int find_and_remove_data_entry_from_directory(struct wfs_inode *directory, char *file_name)
+int delete(struct wfs_inode *directory, char *file_name)
 {
     // search for entry
     off_t curr_offset;
@@ -359,12 +359,12 @@ int handle_unlinking(const char *path)
     int is_unlinked;
     if (S_ISDIR(inode->mode))
     {
-        is_unlinked = find_and_remove_data_entry_from_directory(inode, ".");
+        is_unlinked = delete(inode, ".");
         if (is_unlinked == -1)
         {
             return -EEXIST;
         }
-        find_and_remove_data_entry_from_directory(inode, "..");
+        delete(inode, "..");
         if (is_unlinked == -1)
         {
             return -EEXIST;
@@ -372,7 +372,7 @@ int handle_unlinking(const char *path)
     }
 
     // unlink from parent directory, remove entry from data bitmap and inode bitmap
-    is_unlinked = find_and_remove_data_entry_from_directory(parent, file_name);
+    is_unlinked = delete(parent, file_name);
     if (is_unlinked == -1)
     {
         return -EEXIST;
