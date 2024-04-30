@@ -9,7 +9,6 @@
 #include <sys/mman.h>
 #include <errno.h>
 
-
 char *file_system; // define a file system we can use
 struct wfs_sb *super_block;
 
@@ -18,7 +17,7 @@ struct wfs_sb *super_block;
 struct wfs_inode *get_inode(const char *path)
 {
 
-    printf("the path is: %s\n", path);
+    // printf("the path is: %s\n", path);
     // fetch the root inode
     struct wfs_inode *curr_inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr);
     // printf("the root inode is: %d\n", curr_inode->num);
@@ -50,21 +49,20 @@ struct wfs_inode *get_inode(const char *path)
                 continue;
             }
 
-            for(int j = 0; j < BLOCK_SIZE; j+=sizeof(struct wfs_dentry))
+            for (int j = 0; j < BLOCK_SIZE; j += sizeof(struct wfs_dentry))
             {
                 entry = (struct wfs_dentry *)(file_system + curr_inode->blocks[i] + j);
                 // printf("Entry name: %s and the token: %s\n", entry->name, token);
-                if(strcmp(entry->name, token) == 0)
+                if (strcmp(entry->name, token) == 0)
                 {
                     found = 1;
                     break;
                 }
             }
-            if(found)
+            if (found)
             {
                 break;
             }
-
         }
         // if the path was never found, it does not exist
         if (!found)
@@ -129,17 +127,17 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
 // if not enough space, returns NULL
 struct wfs_inode *allocate_inode(mode_t mode)
 {
-    char * bitmap = file_system + super_block->i_bitmap_ptr;
+    char *bitmap = file_system + super_block->i_bitmap_ptr;
     int idx; // used to keep track of free spot in bitmap
-    struct wfs_inode * inode_ptr = NULL;
-    for(int i  = 0; i < (super_block->num_inodes / 8); i++)
+    struct wfs_inode *inode_ptr = NULL;
+    for (int i = 0; i < (super_block->num_inodes / 8); i++)
     {
         // search by byte over i_bitmap
-        char * currByte = (bitmap + i);
-        for(int j = 0; j < 8; j++)
+        char *currByte = (bitmap + i);
+        for (int j = 0; j < 8; j++)
         {
             // check if value is equal to 0
-            if(((*currByte >> j) & 1) == 0)
+            if (((*currByte >> j) & 1) == 0)
             {
                 // found free spot, set to 1 and create inode
                 *currByte |= (1 << j);
@@ -159,7 +157,7 @@ struct wfs_inode *allocate_inode(mode_t mode)
                 // set all blocks to unallocated
                 for (int k = 0; k < N_BLOCKS; k++)
                 {
-                    inode_ptr->blocks[k] =  0;
+                    inode_ptr->blocks[k] = 0;
                 }
                 // returns the address of a inode pointer
                 return inode_ptr;
@@ -194,7 +192,7 @@ off_t allocate_datablock()
                 *(curr_data_byte) |= (1 << j);
                 // calculate offset for this
                 free_datablock = super_block->d_blocks_ptr + ((i * 8) + j) * BLOCK_SIZE;
-                //memset to 0
+                // memset to 0
                 return free_datablock;
             }
         }
@@ -207,32 +205,32 @@ off_t allocate_datablock()
 // if it is full, will return -1
 int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, int new_inode_num)
 {
-    struct wfs_dentry * currBlock;
+    struct wfs_dentry *currBlock;
     // search through blocks to find viable spots in created blocks
     for (int i = 0; i < N_BLOCKS; i++)
     {
         // since searching left to right, check if not allocated first.
-        if(directory->blocks[i] == 0)
+        if (directory->blocks[i] == 0)
         {
             off_t new_datablock = allocate_datablock();
             directory->blocks[i] = new_datablock;
-            struct wfs_dentry * new_entry = (struct wfs_dentry *)(file_system + new_datablock);
-            
+            struct wfs_dentry *new_entry = (struct wfs_dentry *)(file_system + new_datablock);
+
             memcpy(new_entry->name, file_name, MAX_NAME);
             new_entry->num = new_inode_num;
-            
-            return 0;
 
-        } else 
+            return 0;
+        }
+        else
         {
             // if allocated search for open entry.
-            currBlock = (struct wfs_dentry *) (file_system + directory->blocks[i]);
+            currBlock = (struct wfs_dentry *)(file_system + directory->blocks[i]);
 
             // check within block for empty name, if empty set to new file name and num
-            for(int j = 0; j < BLOCK_SIZE; j += sizeof(struct wfs_dentry))
+            for (int j = 0; j < BLOCK_SIZE; j += sizeof(struct wfs_dentry))
             {
                 currBlock = (struct wfs_dentry *)((char *)currBlock + j);
-                if(strcmp(currBlock->name, "") == 0)
+                if (strcmp(currBlock->name, "") == 0)
                 {
                     memcpy(currBlock->name, file_name, MAX_NAME);
                     currBlock->num = new_inode_num;
@@ -510,20 +508,53 @@ static int wfs_rmdir(const char *path)
 static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t offset, struct fuse_file_info *file_info)
 {
     // printf("In readdir: %s\n", path);
-    struct wfs_inode *parent_dir = get_inode(path); // get parent_dir
-  
+    struct wfs_inode *directory = get_inode(path); // get parent_dir
 
-    if (parent_dir == NULL)
+    if (directory == NULL)
     {
         return -ENOENT;
     }
     // printf("After get inode\n");
     // check that it is directory
-    if (!S_ISDIR(parent_dir->mode))
+    if (!S_ISDIR(directory->mode))
     {
-        printf("%d", parent_dir->mode);
+        printf("%d", directory->mode);
         printf("Must pass in a directory.\n");
         return 1;
+    }
+
+    // add cd . and cd ..
+    char *cd[2] = {".", ".."};
+    char path_checked[30];
+    for (int i = 0; i < 2; i++)
+    {
+
+        struct stat *statbuf = (struct stat *)malloc(sizeof(struct stat));
+        // concat the entire path, path/dentry
+        // cd .
+        if (i == 0)
+        {
+            strcpy(path_checked, path);
+        }
+        // cd ..
+        else
+        {
+            char *parent_path = get_parent_path(path);
+            strcpy(path_checked, parent_path);
+        }
+
+        if (wfs_getattr(path_checked, statbuf) != 0)
+        {
+            printf("ERROR with getattr\n");
+            return 1;
+        }
+
+        // add it to the buffer
+        if (fill(buf, cd[i], statbuf, 0) != 0)
+        {
+            printf("Buffer is full...\n");
+            return 1;
+        }
     }
 
     int i;
@@ -533,7 +564,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
     for (i = 0; i < N_BLOCKS; i++)
     {
 
-        int d_offset = parent_dir->blocks[i];
+        int d_offset = directory->blocks[i];
         // skip over empty entries
         if (d_offset == 0)
         {
@@ -542,30 +573,26 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
         }
 
         // every block (512 bytes) has 16 possible dentries.
-        for (j = 0; j < BLOCK_SIZE/sizeof(struct wfs_dentry); j++)
+        for (j = 0; j < BLOCK_SIZE; j+=sizeof(struct wfs_dentry))
         {
+            
             // calculate the address of the entry
-            dentry = (struct wfs_dentry *)(file_system + d_offset + (j*sizeof(struct wfs_dentry)));
+            dentry = (struct wfs_dentry *)(file_system + d_offset + j);
+            // printf("block: %d, offset: %d dentry is: %s\n", i,j,dentry->name);
+
             // if it is not an empty string (valid), add it
             if (strcmp(dentry->name, "") != 0)
             {
-                // printf("block: %d, offset: %d dentry is: %s\n", i,j,dentry->name);
-                // get statbuf for fill
                 struct stat *statbuf = (struct stat *)malloc(sizeof(struct stat));
                 // concat the entire path, path/dentry
                 char subfile_path[MAX_NAME + 2 + strlen(path)];
                 strcpy(subfile_path, path);
-                // printf("path: %s\n", subfile_path);
                 strcat(subfile_path, "/");
-                // printf("path with parent: %s\n", subfile_path);
-                // printf("file name: %s\n", dentry->name);
                 strcat(subfile_path, dentry->name);
-                // printf("subfile path: %s\n", subfile_path);
-                // fill the statbuf with the stats about this node
                 if (wfs_getattr(subfile_path, statbuf) != 0)
                 {
                     printf("ERROR with getattr\n");
-                    continue;
+                    return 1;
                 }
 
                 // add it to the buffer
@@ -597,8 +624,11 @@ size_t min(size_t a, size_t b)
  *
  * Changed in version 2.2
  */
-static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct fuse_file_info * file) {
+static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct fuse_file_info *file)
+{
     printf("In read method\n");
+    printf("offset passed %ld\n", offset);
+    printf("size passed %ld\n", n);
     struct wfs_inode *file_node = get_inode(path);
     if (file_node == NULL)
     {
@@ -617,24 +647,25 @@ static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct 
     size_t bytes_read = 0; // use to decide when to break
     size_t block_offset = offset % BLOCK_SIZE;
     int starting_block = offset / BLOCK_SIZE;
-    for(int i = starting_block; i < N_BLOCKS; i++)
+    for (int i = starting_block; i < N_BLOCKS; i++)
     {
-        if(bytes_read == n)
+        if (bytes_read == n)
         {
             break;
         }
-        
+
         // for error checking, shouldnt have bytes_read be greater than size n
-        if(bytes_read > n)
+        if (bytes_read > n)
         {
             printf("read in too much...\n");
             break;
         }
-        // printf("file node block: %d\n", file_node->blocks[i]);
-        if(file_node->blocks[i] != -1)
+        printf("file node block: %ld\n", file_node->blocks[i]);
+        if (file_node->blocks[i] != 0)
         {
+            printf("this blokc is not empty\n");
             // valid block so read in this block
-            char * valid_block = file_system + file_node->blocks[i] + block_offset;
+            char *valid_block = file_system + file_node->blocks[i] + block_offset;
             size_t length_left = file_node->size - offset - bytes_read;
             size_t end_length = min(length_left, n - bytes_read);
             size_t num_read = min(BLOCK_SIZE - block_offset, end_length); // do either whole block or whats left.
@@ -642,9 +673,7 @@ static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct 
             memcpy(buf + bytes_read, valid_block, num_read);
             printf("buf: %s\n", buf);
             bytes_read += num_read;
-            block_offset = 0;            
-        } else {
-            break;
+            block_offset = 0;
         }
     }
 
@@ -682,7 +711,7 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
                 datablock_ptr = file_system + datablock;
                 // copy over memory
                 memcpy(datablock_ptr, buf + (i * BLOCK_SIZE), BLOCK_SIZE);
-                printf("the data written is %s\n",datablock_ptr);
+                printf("the data written is %s\n", datablock_ptr);
                 // mark block as allocated
                 inode->blocks[j] = datablock;
                 // update size
@@ -733,32 +762,6 @@ int main(int argc, char **argv)
     // setup pointers
     file_system = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0); // Corrected mmap call
     super_block = (struct wfs_sb *)file_system;
-    // struct wfs_inode *root_inode = get_inode("/");
-    // for (int i = 0; i < N_BLOCKS; i++)
-    // {
-    //     printf("the current block is %ld\n",root_inode->blocks[i]);
-    // }
-    // initate root node cd . & cd ..
-    // struct wfs_inode *root_inode = get_inode("/");
-    // zero it out
-    // for (int i = 0; i < N_BLOCKS; i++)
-    // {
-    //     root_inode->blocks[i] = -1; // updated as a block at offset 0 is possible.
-    // }
-    // insert cd .
-    // insert_entry_into_directory(root_inode, ".", root_inode->num);
-    // if (is_inserted == -1)
-    // {
-    //     return -ENOSPC;
-    // }
-
-    // // insert cd ..
-    // // // insert_entry_into_directory(root_inode, "..", root_inode->num);
-    // // // if (is_inserted == -1)
-    // // // {
-    // // //     printf("testingb\n");
-    //     return -ENOSPC;
-    // // // }
 
     close(fd);
     // remove disk image path from args to give to fuse main
