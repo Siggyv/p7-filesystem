@@ -511,7 +511,7 @@ static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct 
     }
 
     // get start of datablocks
-    char * datablocks = (char *)(file_system + super_block->d_blocks_ptr);
+    // char * datablocks = (char *)(file_system + super_block->d_blocks_ptr);
     size_t bytes_read = 0; // use to decide when to break
     size_t block_offset = offset % BLOCK_SIZE;
     int starting_block = offset / BLOCK_SIZE;
@@ -532,7 +532,7 @@ static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct 
         if(file_node->blocks[i] != -1)
         {
             // valid block so read in this block
-            char * valid_block = datablocks + file_node->blocks[i] + block_offset;
+            char * valid_block = file_system + file_node->blocks[i] + block_offset;
             size_t length_left = file_node->size - offset - bytes_read;
             size_t end_length = min(length_left, n - bytes_read);
             size_t num_read = min(BLOCK_SIZE - block_offset, end_length); // do either whole block or whats left.
