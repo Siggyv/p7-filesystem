@@ -16,47 +16,24 @@ int main(int argc, char **argv)
     char *DISK_IMG_PATH = NULL;
 
     // argument parsing
-    for (int i = 1; i < argc; i++)
+    for (int i = 0; i < argc; i++)
     {
         if (strcmp(argv[i], "-d") == 0)
         {
-            DISK_IMG_PATH = (char *)malloc(strlen(argv[i + 1]) + strlen("./") + 1);
-            if (DISK_IMG_PATH == NULL)
-            {
-                perror("ERROR: could not get memory for the disk image path.\n");
-                exit(1);
-            }
-            strcpy(DISK_IMG_PATH, "./");
-            strcat(DISK_IMG_PATH, argv[i + 1]);
-            // replace all _ with a . go backwards, and only do once.
-            for (int j = strlen(DISK_IMG_PATH); j > 0; j--)
-            {
-                if (DISK_IMG_PATH[j] == '_')
-                {
-                    DISK_IMG_PATH[j] = '.';
-                }
-            }
-            i++; // skip the next arg
+            char DISK_IMG_PATH[28];
+
+            strcpy(DISK_IMG_PATH,"disk.img");
+
+            printf("the disk image path is: %s\n", DISK_IMG_PATH);
         }
         else if (strcmp(argv[i], "-i") == 0)
         {
             num_inodes = atoi(argv[i + 1]);
-            i++;
         }
         else if (strcmp(argv[i], "-b") == 0)
         {
             num_blocks = atoi(argv[i + 1]);
-            i++;
         }
-    }
-    if (num_blocks == -1 || num_inodes == -1 || DISK_IMG_PATH == NULL)
-    {
-        printf("USAGE: -d {fs img path} -i {number i nodes} -b {number data blocks}\n");
-        if (DISK_IMG_PATH != NULL)
-        {
-            free(DISK_IMG_PATH);
-        }
-        exit(1);
     }
 
     // round up num blocks to nearest higher multiple of 32
@@ -65,28 +42,17 @@ int main(int argc, char **argv)
     if (num_inodes % 32 != 0)
         num_inodes = (num_inodes - num_inodes % 32) + 32;
 
-    // check that num of blocks is possible with disk img file size
-    struct stat statbuf;
-    if (stat(DISK_IMG_PATH, &statbuf) != 0)
-    {
-        perror("ERROR: cannot get disk image size.\n");
-        free(DISK_IMG_PATH);
-        exit(1);
-    }
 
-    if (num_blocks * BLOCK_SIZE > statbuf.st_size)
-    {
-        perror("ERROR: block size is too large to fit in disk image.\n");
-        free(DISK_IMG_PATH);
-        exit(1);
-    }
+    printf("num blocks is %d, num nodes is %d\n", num_blocks, num_inodes);
+
 
     // initialize super block
     // open disk img
-    int fd = open(DISK_IMG_PATH, O_RDWR);
+    int fd = open(DISK_IMG_PATH, RD);
     if (fd < 0)
     {
         perror("ERROR: failed to open disk image for initialization.\n");
+
         exit(1);
     }
 
