@@ -16,7 +16,7 @@ int main(int argc, char **argv)
     char *DISK_IMG_PATH = NULL;
 
     // argument parsing
-    for (int i = 1; i < argc; i++)
+    for (int i = 0; i < argc; i++)
     {
         if (strcmp(argv[i], "-d") == 0)
         {
@@ -39,7 +39,6 @@ int main(int argc, char **argv)
         }
     }
 
-
     // round up num blocks to nearest higher multiple of 32
     if (num_blocks % 32 != 0)
         num_blocks = (num_blocks - num_blocks % 32) + 32;
@@ -61,12 +60,8 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if (num_blocks * BLOCK_SIZE > statbuf.st_size)
-    {
-        perror("ERROR: block size is too large to fit in disk image.\n");
-        free(DISK_IMG_PATH);
-        exit(1);
-    }
+    printf("num blocks is %d, num nodes is %d\n", num_blocks, num_inodes);
+
 
     // initialize super block
     // open disk img

@@ -159,7 +159,7 @@ struct wfs_inode *allocate_inode(mode_t mode)
                 // set all blocks to unallocated
                 for (int k = 0; k < N_BLOCKS; k++)
                 {
-                    inode_ptr->blocks[k] = -1;
+                    inode_ptr->blocks[k] =  0;
                 }
                 // returns the address of a inode pointer
                 return inode_ptr;
@@ -194,6 +194,7 @@ off_t allocate_datablock()
                 *(curr_data_byte) |= (1 << j);
                 // calculate offset for this
                 free_datablock = super_block->d_blocks_ptr + ((i * 8) + j) * BLOCK_SIZE;
+                //memset to 0
                 return free_datablock;
             }
         }
@@ -289,6 +290,7 @@ int handle_inode_insertion(const char *path, mode_t mode)
     char *parent_path = get_parent_path(path);
     // get the parent, and allocate space for a new inode
     struct wfs_inode *parent = get_inode(parent_path);
+    printf("the parent path is: %s\n", parent_path);
     // check that parent path exists
     if (parent == NULL)
     {
@@ -411,6 +413,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
 
     if (parent_dir == NULL)
     {
+        printf("issue here\n");
         return -ENOENT;
     }
     // printf("After get inode\n");
@@ -438,14 +441,15 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
         }
 
         // every block (512 bytes) has 16 possible dentries.
-        for (j = 0; j < BLOCK_SIZE; j+=sizeof(struct wfs_dentry))
+        for (j = 0; j < BLOCK_SIZE/sizeof(struct wfs_dentry); j++)
         {
-            // calculate the address of the entry
-            dentry = (struct wfs_dentry *)(file_system + d_offset + j);
             printf("block: %d, offset: %d dentry is: %s\n", i,j,dentry->name);
+            // calculate the address of the entry
+            dentry = (struct wfs_dentry *)(file_system + d_offset + (j*sizeof(struct wfs_dentry)));
             // if it is not an empty string (valid), add it
             if (strcmp(dentry->name, "") != 0)
             {
+                // printf("block: %d, offset: %d dentry is: %s\n", i,j,dentry->name);
                 printf("dentry: %s\n", dentry->name);
                 // get statbuf for fill
                 struct stat *statbuf = (struct stat *)malloc(sizeof(struct stat));
@@ -462,7 +466,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
                 if (wfs_getattr(subfile_path, statbuf) != 0)
                 {
                     printf("ERROR with getattr\n");
-                    return 1;
+                    continue;
                 }
 
                 // add it to the buffer
