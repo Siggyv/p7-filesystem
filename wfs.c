@@ -49,7 +49,7 @@ struct wfs_inode *get_inode(const char *path)
             for(int j = 0; j < BLOCK_SIZE; j+=sizeof(struct wfs_dentry))
             {
                 entry = (struct wfs_dentry *)(file_system + curr_inode->blocks[i] + j);
-                printf("Entry name: %s\n", entry->name);
+                printf("name: %s\ntoken: %s\n", entry->name, token);
                 if(strcmp(entry->name, token) == 0)
                 {
                     found = 1;
@@ -445,8 +445,12 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
                 // concat the entire path, path/dentry
                 char subfile_path[MAX_NAME + 2 + strlen(path)];
                 strcpy(subfile_path, path);
+                printf("path: %s\n", subfile_path);
                 strcat(subfile_path, "/");
+                printf("path with paren: %s\n", subfile_path);
+                printf("file name: %s\n", dentry->name);
                 strcat(subfile_path, dentry->name);
+                printf("subfile path: %s\n", subfile_path);
                 // fill the statbuf with the stats about this node
                 if (wfs_getattr(subfile_path, statbuf) != 0)
                 {
