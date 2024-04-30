@@ -448,8 +448,12 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
                 // concat the entire path, path/dentry
                 char subfile_path[MAX_NAME + 2 + strlen(path)];
                 strcpy(subfile_path, path);
+                printf("path: %s\n", subfile_path);
                 strcat(subfile_path, "/");
+                printf("path with paren: %s\n", subfile_path);
+                printf("file name: %s\n", dentry->name);
                 strcat(subfile_path, dentry->name);
+                printf("subfile path: %s\n", subfile_path);
                 // fill the statbuf with the stats about this node
                 if (wfs_getattr(subfile_path, statbuf) != 0)
                 {
