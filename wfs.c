@@ -124,10 +124,42 @@ static int wfs_getattr(const char *path, struct stat *stbuf)
 // if not enough space, returns NULL
 struct wfs_inode *allocate_inode(mode_t mode)
 {
-    char * bitmap = super_block->i_bitmap_ptr;
-
-    for(int i  = 0; )
-
+    char * bitmap = file_system + super_block->i_bitmap_ptr;
+    int idx; // used to keep track of free spot in bitmap
+    struct wfs_inode * inode_ptr = NULL;
+    for(int i  = 0; i < (super_block->num_inodes / 8); i++)
+    {
+        char * currByte = (bitmap + i);
+        for(int j = 0; j < 8; j++)
+        {
+            // check if value is equal to 0
+            if(((*currByte >> j) & 1) == 0)
+            {
+                // found free spot, set to 1 and create inode
+                *currByte |= (1 << j);
+                idx = (i * 8) + j;
+                inode_ptr = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr + (idx * sizeof(struct wfs_inode)));
+                // update inode basic attributes
+                // printf("the inode number that is found free is: %d\n", free_inode_num);
+                inode_ptr->num = idx;
+                inode_ptr->mode = mode;
+                inode_ptr->uid = getuid();
+                inode_ptr->gid = getgid();
+                inode_ptr->size = 0;   // initially empty
+                inode_ptr->nlinks = 0; // initially empty
+                inode_ptr->atim = time(NULL);
+                inode_ptr->mtim = time(NULL);
+                inode_ptr->ctim = time(NULL);
+                // set all blocks to unallocated
+                for (int i = 0; i < N_BLOCKS; i++)
+                {
+                    inode_ptr->blocks[i] = -1;
+                }
+                // returns the address of a inode pointer
+                return inode_ptr;
+            }
+        }
+    }
     // if not enough space, will return null.
     return NULL;
 }
