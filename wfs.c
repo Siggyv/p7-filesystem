@@ -18,7 +18,7 @@ struct wfs_sb *super_block;
 struct wfs_inode *get_inode(const char *path)
 {
 
-    // printf("the path is: %s\n", path);
+    printf("the path is: %s\n", path);
     // fetch the root inode
     struct wfs_inode *curr_inode = (struct wfs_inode *)(file_system + super_block->i_blocks_ptr);
     // printf("the root inode is: %d\n", curr_inode->num);
@@ -211,7 +211,7 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
     for (int i = 0; i < N_BLOCKS; i++)
     {
         // since searching left to right, check if not allocated first.
-        if(directory->blocks[i] == -1)
+        if(directory->blocks[i] == 0)
         {
             off_t new_datablock = allocate_datablock();
             directory->blocks[i] = new_datablock;
@@ -297,6 +297,7 @@ int handle_inode_insertion(const char *path, mode_t mode)
 
     // allocate the new inode
     struct wfs_inode *new_inode = allocate_inode(mode);
+    printf("new inode is: %d and filename is: %s\n", new_inode->num, file_name);
     // make sure their is sufficient space for the inode
     if (new_inode == NULL)
     {
@@ -313,22 +314,22 @@ int handle_inode_insertion(const char *path, mode_t mode)
     // if it is a directory being inserted in, also need to add links for
     //  cd . & cd ..
     // TODO, figure out if 509 is correct
-    if (S_ISDIR(mode))
-    {
-        // insert cd .
-        is_inserted = insert_entry_into_directory(new_inode, ".", new_inode->num);
-        if (is_inserted == -1)
-        {
-            return -ENOSPC;
-        }
-        // insert cd ..
-        is_inserted = insert_entry_into_directory(new_inode, "..", parent->num);
-        if (is_inserted == -1)
-        {
-            return -ENOSPC;
-        }
-        // printf("I made it here for mkdir.... path was: %s and mode was %d\n", file_name, mode);
-    }
+    // if (S_ISDIR(mode))
+    // {
+    //     // insert cd .
+    //     is_inserted = insert_entry_into_directory(new_inode, ".", new_inode->num);
+    //     if (is_inserted == -1)
+    //     {
+    //         return -ENOSPC;
+    //     }
+    //     // insert cd ..
+    //     is_inserted = insert_entry_into_directory(new_inode, "..", parent->num);
+    //     if (is_inserted == -1)
+    //     {
+    //         return -ENOSPC;
+    //     }
+    //     // printf("I made it here for mkdir.... path was: %s and mode was %d\n", file_name, mode);
+    // }
     return 0;
 }
 
@@ -406,7 +407,6 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
 {
     // printf("In readdir: %s\n", path);
     struct wfs_inode *parent_dir = get_inode(path); // get parent_dir
-    // printf("the inode is: %d\n", parent_dir->num);
   
 
     if (parent_dir == NULL)
@@ -442,7 +442,7 @@ static int wfs_readdir(const char *path, void *buf, fuse_fill_dir_t fill, off_t 
         {
             // calculate the address of the entry
             dentry = (struct wfs_dentry *)(file_system + d_offset + j);
-            // printf("block: %d, offset: %d dentry is: %s\n", i,j,dentry->name);
+            printf("block: %d, offset: %d dentry is: %s\n", i,j,dentry->name);
             // if it is not an empty string (valid), add it
             if (strcmp(dentry->name, "") != 0)
             {
