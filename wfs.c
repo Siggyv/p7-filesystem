@@ -435,11 +435,28 @@ int delete(struct wfs_inode *directory, char *file_name)
                 int inode_idx = inode->num;
                 for (int k = 0; k < N_BLOCKS; k++)
                 {
-                    if (inode->blocks[i] != 0)
+                    if(inode->blocks[k] != 0)
                     {
-                        // get dblock index and set bitmap to indicate freed
-                        int idx = (inode->blocks[i] - super_block->d_blocks_ptr) / BLOCK_SIZE;
+                        if(k == N_BLOCKS - 1)
+                        {
+                            // get block of data ptrs
+                            off_t * offset = (off_t *)(file_system + inode->blocks[i]);
+                            for(int l = 0; l < (BLOCK_SIZE / sizeof(off_t)); l++)
+                            {
+                                if(*offset == 0) continue;
 
+                                // get and set block index in bitmap to 0.
+                                int block_idx = (*offset - super_block->d_blocks_ptr) / BLOCK_SIZE;
+                                setbitmap(dbitmap, 0, block_idx, 1);
+
+
+                                // advance offset node
+                                offset += 1;
+                            }
+                        }
+                        // get dblock index and set bitmap to indicate freed
+                        int idx = (inode->blocks[k] - super_block->d_blocks_ptr) / BLOCK_SIZE;
+                        
                         // set idx in dbitmap to zero
                         setbitmap(dbitmap, 0, idx, 1);
                     }
@@ -616,17 +633,6 @@ size_t min(size_t a, size_t b)
     return (a < b) ? a : b;
 }
 
-/** Read data from an open file
- *
- * Read should return exactly the number of bytes requested except
- * on EOF or error, otherwise the rest of the data will be
- * substituted with zeroes.	 An exception to this is when the
- * 'direct_io' mount option is specified, in which case the return
- * value of the read system call will reflect the return value of
- * this operation.
- *
- * Changed in version 2.2
- */
 static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct fuse_file_info *file)
 {
     printf("In read method\n");
@@ -666,17 +672,38 @@ static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct 
         printf("file node block: %ld\n", file_node->blocks[i]);
         if (file_node->blocks[i] != 0)
         {
-            printf("this blokc is not empty\n");
             // valid block so read in this block
-            char *valid_block = file_system + file_node->blocks[i] + block_offset;
-            size_t length_left = file_node->size - offset - bytes_read;
-            size_t end_length = min(length_left, n - bytes_read);
-            size_t num_read = min(BLOCK_SIZE - block_offset, end_length); // do either whole block or whats left.
-            printf("the valid block is: %s\n", valid_block);
-            memcpy(buf + bytes_read, valid_block, num_read);
-            printf("buf: %s\n", buf);
-            bytes_read += num_read;
-            block_offset = 0;
+            if(i == N_BLOCKS - 1)
+            {
+                off_t * indirect_ptr = (off_t *)(file_system + file_node->blocks[i]);
+                // loop over off_ts starting at indirect_ptr, for each one read the block
+                for(int j = 0; j < (BLOCK_SIZE / sizeof(off_t)); j++)
+                {
+                    if(indirect_ptr[j] == 0) continue;
+
+                    char * indirect_block = file_system + indirect_ptr[j] + block_offset; // offset should be zero if this is not the first block otherwise adjust
+
+                    size_t file_bytes_left = file_node->size - offset - bytes_read;
+                    size_t remianing_bytes = min(file_bytes_left, n - bytes_read); // whats shorter length till end of file or bytes still requested
+                    size_t read_num = min(BLOCK_SIZE - block_offset, remianing_bytes); // if block offset is zero, then it should either write block size or whats left
+
+                    memcpy(buf + bytes_read, indirect_block, read_num);
+                    bytes_read += read_num;
+                    block_offset = 0; // to only apply offset once
+                }
+            } 
+            else
+            {
+                char *valid_block = file_system + file_node->blocks[i] + block_offset;
+
+                size_t length_left = file_node->size - offset - bytes_read;
+                size_t end_length = min(length_left, n - bytes_read);
+                size_t num_read = min(BLOCK_SIZE - block_offset, end_length); // do either whole block or whats left.
+
+                memcpy(buf + bytes_read, valid_block, num_read);
+                bytes_read += num_read;
+                block_offset = 0;
+            }
         }
     }
 
