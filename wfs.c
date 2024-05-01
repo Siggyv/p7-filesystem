@@ -66,7 +66,8 @@ struct wfs_inode *get_inode(const char *path)
         }
         // if the path was never found, it does not exist
         if (!found)
-        {
+        {   
+            printf("there is an error found here...\n");
             free(copy_path);
             return NULL;
         }
@@ -212,11 +213,12 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
         // since searching left to right, check if not allocated first.
         if (directory->blocks[i] == 0)
         {
+            printf("this happened and should only show up once\n");
             off_t new_datablock = allocate_datablock();
             directory->blocks[i] = new_datablock;
             struct wfs_dentry *new_entry = (struct wfs_dentry *)(file_system + new_datablock);
 
-            memcpy(new_entry->name, file_name, MAX_NAME);
+            strcpy(new_entry->name, file_name);
             new_entry->num = new_inode_num;
 
             return 0;
@@ -224,15 +226,15 @@ int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, in
         else
         {
             // if allocated search for open entry.
-            currBlock = (struct wfs_dentry *)(file_system + directory->blocks[i]);
 
             // check within block for empty name, if empty set to new file name and num
             for (int j = 0; j < BLOCK_SIZE; j += sizeof(struct wfs_dentry))
             {
-                currBlock = (struct wfs_dentry *)((char *)currBlock + j);
+                currBlock = (struct wfs_dentry *)(file_system + directory->blocks[i] + j);
                 if (strcmp(currBlock->name, "") == 0)
                 {
-                    memcpy(currBlock->name, file_name, MAX_NAME);
+                    strcpy(currBlock->name, file_name);
+                    printf("the curr block name is: %s\n", currBlock->name);
                     currBlock->num = new_inode_num;
 
                     return 0; // much success
