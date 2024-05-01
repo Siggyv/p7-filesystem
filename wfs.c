@@ -188,11 +188,15 @@ off_t allocate_datablock()
             // find first open spot
             if (((*(curr_data_byte) >> j) & 1) == 0)
             {
+                
                 // update this bit to allocated
                 *(curr_data_byte) |= (1 << j);
+                // printf("the value here is: %d\n", (*(curr_data_byte) >> j));
                 // calculate offset for this
                 free_datablock = super_block->d_blocks_ptr + ((i * 8) + j) * BLOCK_SIZE;
                 // memset to 0
+                // memset(file_system + super_block->d_blocks_ptr + ((i * 8 + j) * BLOCK_SIZE), 0, BLOCK_SIZE);
+
                 return free_datablock;
             }
         }
@@ -731,10 +735,10 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
     // loop over first 7 blocks
     // start at the block where the size ends, that is there is open space
     // loop over all blocks, looking for a frees
-    for (int i = 0; i < N_BLOCKS - 1; i++)
-    {
-        printf("this block is: %ld\n", inode->blocks[i]);
-    }
+    // for (int i = 0; i < N_BLOCKS - 1; i++)
+    // {
+    //     printf("this block is: %ld\n", inode->blocks[i]);
+    // }
 
     for (int i = starting_block; i < N_BLOCKS - 1; i++)
     {
@@ -757,7 +761,6 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
         // otherwise, grab the data at the address
         else
         {
-            printf("i am here...\n");
             datablock = inode->blocks[i] + (starting_offset % BLOCK_SIZE);
         }
 
@@ -814,7 +817,7 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
             // if the offset it zero, need to allocate the block
             if (offsets[i] == 0)
             {
-                printf("allocating a datablock in write, iteration: %d\n", i);
+                // printf("allocating a datablock in write, iteration: %d\n", i);
                 datablock = allocate_datablock();
                 if (datablock == -1)
                 {
@@ -872,6 +875,8 @@ static struct fuse_operations ops = {
 
 int main(int argc, char **argv)
 {
+
+    
     if (argc < 3)
     {
         printf("USAGE: ./wfs disk_path [FUSE options] mount_point\n");
@@ -897,6 +902,10 @@ int main(int argc, char **argv)
     file_system = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0); // Corrected mmap call
     super_block = (struct wfs_sb *)file_system;
 
+
+
+
+    
     printf("the super block inode count is: %ld\n", super_block->num_inodes);
 
     close(fd);
