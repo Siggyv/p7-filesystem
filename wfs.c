@@ -66,8 +66,7 @@ struct wfs_inode *get_inode(const char *path)
         }
         // if the path was never found, it does not exist
         if (!found)
-        {   
-            printf("there is an error found here...\n");
+        {
             free(copy_path);
             return NULL;
         }
@@ -198,23 +197,37 @@ off_t allocate_datablock()
             }
         }
     }
+    printf("this is happening in bitmap");
 
     return -1;
 }
 
 // inserts a entry into the given directory and returns 0
 // if it is full, will return -1
-int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, int new_inode_num)
+int insert_entry_into_directory(struct wfs_inode *directory, char *file_name, int new_inode_num, mode_t mode)
 {
     struct wfs_dentry *currBlock;
+    int n_blocks = 0;
+    if (S_ISDIR(mode))
+    {
+        n_blocks = N_BLOCKS;
+    }
+    else
+    {
+        // for a regular file
+        n_blocks = N_BLOCKS - 1;
+    }
     // search through blocks to find viable spots in created blocks
-    for (int i = 0; i < N_BLOCKS; i++)
+    for (int i = 0; i < n_blocks; i++)
     {
         // since searching left to right, check if not allocated first.
         if (directory->blocks[i] == 0)
         {
-            printf("this happened and should only show up once\n");
             off_t new_datablock = allocate_datablock();
+            if (new_datablock == -1)
+            {
+                return -ENOSPC;
+            }
             directory->blocks[i] = new_datablock;
             struct wfs_dentry *new_entry = (struct wfs_dentry *)(file_system + new_datablock);
 
@@ -299,7 +312,6 @@ int handle_inode_insertion(const char *path, mode_t mode)
 
     // allocate the new inode
     struct wfs_inode *new_inode = allocate_inode(mode);
-    printf("new inode is: %d and filename is: %s\n", new_inode->num, file_name);
     // make sure their is sufficient space for the inode
     if (new_inode == NULL)
     {
@@ -307,31 +319,12 @@ int handle_inode_insertion(const char *path, mode_t mode)
     }
 
     // insert the new node into the parent directory
-    int is_inserted = insert_entry_into_directory(parent, file_name, new_inode->num);
+    int is_inserted = insert_entry_into_directory(parent, file_name, new_inode->num, mode);
     if (is_inserted == -1)
     {
         return -ENOSPC;
     }
 
-    // if it is a directory being inserted in, also need to add links for
-    //  cd . & cd ..
-    // TODO, figure out if 509 is correct
-    // if (S_ISDIR(mode))
-    // {
-    //     // insert cd .
-    //     is_inserted = insert_entry_into_directory(new_inode, ".", new_inode->num);
-    //     if (is_inserted == -1)
-    //     {
-    //         return -ENOSPC;
-    //     }
-    //     // insert cd ..
-    //     is_inserted = insert_entry_into_directory(new_inode, "..", parent->num);
-    //     if (is_inserted == -1)
-    //     {
-    //         return -ENOSPC;
-    //     }
-    //     // printf("I made it here for mkdir.... path was: %s and mode was %d\n", file_name, mode);
-    // }
     return 0;
 }
 
@@ -755,6 +748,10 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
         {
             printf("allocating a datablock in write, iteration: %d\n", i);
             datablock = allocate_datablock();
+            if (datablock == -1)
+            {
+                return -ENOSPC;
+            }
             inode->blocks[i] = datablock;
         }
         // otherwise, grab the data at the address
@@ -794,6 +791,10 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
         if (inode->blocks[7] == 0)
         {
             inode->blocks[7] = allocate_datablock();
+            if (inode->blocks[7] == -1)
+            {
+                return -ENOSPC;
+            }
         }
         // find the start inside of the indirect blocks
         int index_in_indirect = starting_block - 7;
@@ -815,6 +816,10 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
             {
                 printf("allocating a datablock in write, iteration: %d\n", i);
                 datablock = allocate_datablock();
+                if (datablock == -1)
+                {
+                    return -ENOSPC;
+                }
                 offsets[i] = datablock;
             }
             // otherwise, grab the data at the address
@@ -891,6 +896,8 @@ int main(int argc, char **argv)
     // setup pointers
     file_system = mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, 0); // Corrected mmap call
     super_block = (struct wfs_sb *)file_system;
+
+    printf("the super block inode count is: %ld\n", super_block->num_inodes);
 
     close(fd);
     // remove disk image path from args to give to fuse main
