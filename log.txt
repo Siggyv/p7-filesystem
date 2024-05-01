@@ -1,0 +1,422 @@
+gcc -Wall -Werror -pedantic -std=gnu18 -g wfs.c `pkg-config fuse --cflags --libs` -o wfs
+gcc -Wall -Werror -pedantic -std=gnu18 -g -o mkfs mkfs.c
+gcc -Wall -Werror -pedantic -std=gnu18 -g -o mkfs_test test_mkfs.c
+num blocks is 64, num nodes is 32
+the super block inode count is: 32
+super block dblock count: 64
+./wfs
+-f
+-s
+./mnt
+finished readdir
+the parent path is: /
+
+
+open idx: 0
+
+DBITMAP:
+1000000000000000000000000000000000000000000000000000000000000000
+IBITMAP
+11000000000000000000000000000000
+starting block: 0 starting offset is: 0 vs offset: 0 and the size is: 4096
+this block is: 0
+this block is: 0
+this block is: 0
+this block is: 0
+this block is: 0
+this block is: 0
+this block is: 0
+allocating a datablock in write, iteration: 0
+
+
+open idx: 1
+
+allocating a datablock in write, iteration: 1
+
+
+open idx: 2
+
+allocating a datablock in write, iteration: 2
+
+
+open idx: 3
+
+allocating a datablock in write, iteration: 3
+
+
+open idx: 4
+
+allocating a datablock in write, iteration: 4
+
+
+open idx: 5
+
+allocating a datablock in write, iteration: 5
+
+
+open idx: 6
+
+allocating a datablock in write, iteration: 6
+
+
+open idx: 7
+
+
+
+open idx: 8
+
+the starting block is: 7
+size of an offse it: 8
+allocating a datablock in write, iteration: 0
+
+
+open idx: 9
+
+everything written...
+starting block: 8 starting offset is: 0 vs offset: 4096 and the size is: 4096
+this block is: 16956
+this block is: 17468
+this block is: 17980
+this block is: 18492
+this block is: 19004
+this block is: 19516
+this block is: 20028
+the starting block is: 8
+size of an offse it: 8
+allocating a datablock in write, iteration: 1
+
+
+open idx: 10
+
+allocating a datablock in write, iteration: 2
+
+
+open idx: 11
+
+allocating a datablock in write, iteration: 3
+
+
+open idx: 12
+
+allocating a datablock in write, iteration: 4
+
+
+open idx: 13
+
+allocating a datablock in write, iteration: 5
+
+
+open idx: 14
+
+allocating a datablock in write, iteration: 6
+
+
+open idx: 15
+
+allocating a datablock in write, iteration: 7
+
+
+open idx: 16
+
+allocating a datablock in write, iteration: 8
+
+
+open idx: 17
+
+everything written...
+starting block: 16 starting offset is: 0 vs offset: 8192 and the size is: 4096
+this block is: 16956
+this block is: 17468
+this block is: 17980
+this block is: 18492
+this block is: 19004
+this block is: 19516
+this block is: 20028
+the starting block is: 16
+size of an offse it: 8
+allocating a datablock in write, iteration: 9
+
+
+open idx: 18
+
+allocating a datablock in write, iteration: 10
+
+
+open idx: 19
+
+allocating a datablock in write, iteration: 11
+
+
+open idx: 20
+
+allocating a datablock in write, iteration: 12
+
+
+open idx: 21
+
+allocating a datablock in write, iteration: 13
+
+
+open idx: 22
+
+allocating a datablock in write, iteration: 14
+
+
+open idx: 23
+
+allocating a datablock in write, iteration: 15
+
+
+open idx: 24
+
+allocating a datablock in write, iteration: 16
+
+
+open idx: 25
+
+everything written...
+starting block: 24 starting offset is: 0 vs offset: 12288 and the size is: 4096
+this block is: 16956
+this block is: 17468
+this block is: 17980
+this block is: 18492
+this block is: 19004
+this block is: 19516
+this block is: 20028
+the starting block is: 24
+size of an offse it: 8
+allocating a datablock in write, iteration: 17
+
+
+open idx: 26
+
+allocating a datablock in write, iteration: 18
+
+
+open idx: 27
+
+allocating a datablock in write, iteration: 19
+
+
+open idx: 28
+
+allocating a datablock in write, iteration: 20
+
+
+open idx: 29
+
+allocating a datablock in write, iteration: 21
+
+
+open idx: 30
+
+allocating a datablock in write, iteration: 22
+
+
+open idx: 31
+
+allocating a datablock in write, iteration: 23
+
+
+open idx: 32
+
+allocating a datablock in write, iteration: 24
+
+
+open idx: 33
+
+everything written...
+starting block: 32 starting offset is: 0 vs offset: 16384 and the size is: 4096
+this block is: 16956
+this block is: 17468
+this block is: 17980
+this block is: 18492
+this block is: 19004
+this block is: 19516
+this block is: 20028
+the starting block is: 32
+size of an offse it: 8
+allocating a datablock in write, iteration: 25
+
+
+open idx: 34
+
+allocating a datablock in write, iteration: 26
+
+
+open idx: 35
+
+allocating a datablock in write, iteration: 27
+
+
+open idx: 36
+
+allocating a datablock in write, iteration: 28
+
+
+open idx: 37
+
+allocating a datablock in write, iteration: 29
+
+
+open idx: 38
+
+allocating a datablock in write, iteration: 30
+
+
+open idx: 39
+
+allocating a datablock in write, iteration: 31
+
+
+open idx: 40
+
+allocating a datablock in write, iteration: 32
+
+
+open idx: 41
+
+everything written...
+starting block: 40 starting offset is: 0 vs offset: 20480 and the size is: 4096
+this block is: 16956
+this block is: 17468
+this block is: 17980
+this block is: 18492
+this block is: 19004
+this block is: 19516
+this block is: 20028
+the starting block is: 40
+size of an offse it: 8
+allocating a datablock in write, iteration: 33
+
+
+open idx: 42
+
+allocating a datablock in write, iteration: 34
+
+
+open idx: 43
+
+allocating a datablock in write, iteration: 35
+
+
+open idx: 44
+
+allocating a datablock in write, iteration: 36
+
+
+open idx: 45
+
+allocating a datablock in write, iteration: 37
+
+
+open idx: 46
+
+allocating a datablock in write, iteration: 38
+
+
+open idx: 47
+
+allocating a datablock in write, iteration: 39
+
+
+open idx: 48
+
+allocating a datablock in write, iteration: 40
+
+
+open idx: 49
+
+everything written...
+starting block: 48 starting offset is: 0 vs offset: 24576 and the size is: 4096
+this block is: 16956
+this block is: 17468
+this block is: 17980
+this block is: 18492
+this block is: 19004
+this block is: 19516
+this block is: 20028
+the starting block is: 48
+size of an offse it: 8
+allocating a datablock in write, iteration: 41
+
+
+open idx: 50
+
+allocating a datablock in write, iteration: 42
+
+
+open idx: 51
+
+allocating a datablock in write, iteration: 43
+
+
+open idx: 52
+
+allocating a datablock in write, iteration: 44
+
+
+open idx: 53
+
+allocating a datablock in write, iteration: 45
+
+
+open idx: 54
+
+allocating a datablock in write, iteration: 46
+
+
+open idx: 55
+
+allocating a datablock in write, iteration: 47
+
+
+open idx: 56
+
+allocating a datablock in write, iteration: 48
+
+
+open idx: 57
+
+everything written...
+starting block: 56 starting offset is: 0 vs offset: 28672 and the size is: 3072
+this block is: 16956
+this block is: 17468
+this block is: 17980
+this block is: 18492
+this block is: 19004
+this block is: 19516
+this block is: 20028
+the starting block is: 56
+size of an offse it: 8
+allocating a datablock in write, iteration: 49
+
+
+open idx: 58
+
+allocating a datablock in write, iteration: 50
+
+
+open idx: 59
+
+allocating a datablock in write, iteration: 51
+
+
+open idx: 60
+
+allocating a datablock in write, iteration: 52
+
+
+open idx: 61
+
+allocating a datablock in write, iteration: 53
+
+
+open idx: 62
+
+allocating a datablock in write, iteration: 54
+
+
+open idx: 63
+
+everything written...

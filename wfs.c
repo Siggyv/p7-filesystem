@@ -12,6 +12,54 @@
 char *file_system; // define a file system we can use
 struct wfs_sb *super_block;
 
+
+void printbitmap(char *bitmap, int isBlocks)
+{
+    int size = (isBlocks) ? super_block->num_data_blocks : super_block->num_inodes;
+    if(isBlocks){
+        printf("DBITMAP:\n");
+    }else{
+        printf("IBITMAP\n");
+    }
+    for (int i = 0; i < (size / 8); i++)
+    {
+        char byte = *(bitmap + i);
+        for (int j = 0; j < 8; j++)
+        {
+            printf("%d",byte >> j & 1);
+        }
+    }
+    printf("\n");
+}
+
+// bitmap is the specific bitmap pointer
+// value is the value to set in the idx specified
+// isBlocks is a boolean to decide which number of inodes or number of blocks to use.
+int setbitmap(char *bitmap, int value, int idx, int isBlocks)
+{
+    int outer_iter = (isBlocks) ? super_block->num_data_blocks : super_block->num_inodes;
+    for (int i = 0; i < (outer_iter / 8); i++)
+    {
+        char *currByte = bitmap + i;
+        for (int j = 0; j < 8; j++)
+        {
+            if ((i * 8 + j) == idx)
+            {
+                if (value == 1)
+                {
+                    *(currByte) |= (value << j);
+                }
+                else
+                {
+                    *(currByte) &= ~(1 << j);
+                }
+                return value;
+            }
+        }
+    }
+    return -1;
+}
+
 // return a pointer to inode, or NULL if not found
 // fills up a given inode, given a path of a inode
 struct wfs_inode *get_inode(const char *path)
@@ -173,15 +221,14 @@ struct wfs_inode *allocate_inode(mode_t mode)
 off_t allocate_datablock()
 {
     off_t free_datablock;
-    off_t curr_datablock_bit = super_block->d_bitmap_ptr;
     int i;
     int j;
     char *curr_data_byte;
-    for (i = 0; i < super_block->num_data_blocks; i++)
+    for (i = 0; i < (super_block->num_data_blocks/8); i++)
     {
 
         // get the char pointer to this byte
-        curr_data_byte = file_system + curr_datablock_bit + i;
+        curr_data_byte = file_system + super_block->d_bitmap_ptr + i;
         // loop over each bit, checking if they are 1
         for (j = 0; j < 8; j++)
         {
@@ -190,6 +237,7 @@ off_t allocate_datablock()
             {
                 
                 // update this bit to allocated
+<<<<<<< HEAD
                 *(curr_data_byte) |= (1 << j);
                 // printf("the value here is: %d\n", (*(curr_data_byte) >> j));
                 // calculate offset for this
@@ -197,6 +245,14 @@ off_t allocate_datablock()
                 // memset to 0
                 // memset(file_system + super_block->d_blocks_ptr + ((i * 8 + j) * BLOCK_SIZE), 0, BLOCK_SIZE);
 
+=======
+                printf("\n\nopen idx: %d\n\n", (i*8 + j));
+                setbitmap((file_system + super_block->d_bitmap_ptr), 1, (i*8 + j), 1);
+                // calculate offset for this
+                free_datablock = super_block->d_blocks_ptr + ((i * 8) + j) * BLOCK_SIZE;
+                // memset to 0
+                memset(file_system + free_datablock, 0, BLOCK_SIZE);
+>>>>>>> e4d4cf0ff3b9be5a4bda35b29b7b214c2b0b9199
                 return free_datablock;
             }
         }
@@ -326,6 +382,7 @@ int handle_inode_insertion(const char *path, mode_t mode)
     int is_inserted = insert_entry_into_directory(parent, file_name, new_inode->num, mode);
     if (is_inserted == -1)
     {
+        printf("erere\n");
         return -ENOSPC;
     }
 
@@ -339,6 +396,12 @@ static int wfs_mknod(const char *path, mode_t mode, dev_t dev)
     {
         return handled_insertion;
     }
+    
+    char * dbitmap = (file_system + super_block->d_bitmap_ptr);
+    char * ibitmap = (file_system + super_block->i_bitmap_ptr);
+
+    printbitmap(dbitmap, 1);
+    printbitmap(ibitmap, 0);
     return 0; // Success
 }
 
@@ -355,46 +418,6 @@ static int wfs_mkdir(const char *path, mode_t mode)
     return 0; // Success
 }
 
-// bitmap is the specific bitmap pointer
-// value is the value to set in the idx specified
-// isBlocks is a boolean to decide which number of inodes or number of blocks to use.
-int setbitmap(char *bitmap, int value, int idx, int isBlocks)
-{
-    int outer_iter = (isBlocks) ? super_block->num_data_blocks : super_block->num_inodes;
-    for (int i = 0; i < (outer_iter / 8); i++)
-    {
-        char *currByte = bitmap + i;
-        for (int j = 0; j < 8; j++)
-        {
-            if ((i * 8 + j) == idx)
-            {
-                if (value == 1)
-                {
-                    *(currByte) |= (value << j);
-                }
-                else
-                {
-                    *(currByte) &= ~(1 << j);
-                }
-                return value;
-            }
-        }
-    }
-    return -1;
-}
-
-void printbitmap(char *bitmap, int isBlocks)
-{
-    int size = (isBlocks) ? super_block->num_data_blocks : super_block->num_inodes;
-    for (int i = 0; i < (size / 8); i++)
-    {
-        char byte = *(bitmap + i);
-        for (int j = 0; j < 8; j++)
-        {
-            printf("idx: %d and val: %d\n", (i * 8 + j), byte >> j & 1);
-        }
-    }
-}
 // finds and removes an entry given by name, returns 0
 // if entry is not found, will return -1
 int delete(struct wfs_inode *directory, char *file_name)
@@ -907,7 +930,7 @@ int main(int argc, char **argv)
 
     
     printf("the super block inode count is: %ld\n", super_block->num_inodes);
-
+    printf("super block dblock count: %ld\n", super_block->num_data_blocks);
     close(fd);
     // remove disk image path from args to give to fuse main
     char **fuse_args = (char **)malloc((argc - 1) * sizeof(char *));
