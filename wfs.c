@@ -44,7 +44,7 @@ struct wfs_inode *get_inode(const char *path)
         for (i = 0; i < N_BLOCKS; i++)
         {
             // printf("entering each block, current block: %ld\n", curr_inode->blocks[i]);
-            if (curr_inode->blocks[i] == -1)
+            if (curr_inode->blocks[i] == 0)
             {
                 continue;
             }
@@ -435,20 +435,20 @@ int delete(struct wfs_inode *directory, char *file_name)
                 int inode_idx = inode->num;
                 for (int k = 0; k < N_BLOCKS; k++)
                 {
-                    if(inode->blocks[k] != 0)
+                    if (inode->blocks[k] != 0)
                     {
-                        if(k == N_BLOCKS - 1)
+                        if (k == N_BLOCKS - 1)
                         {
                             // get block of data ptrs
-                            off_t * offset = (off_t *)(file_system + inode->blocks[i]);
-                            for(int l = 0; l < (BLOCK_SIZE / sizeof(off_t)); l++)
+                            off_t *offset = (off_t *)(file_system + inode->blocks[i]);
+                            for (int l = 0; l < (BLOCK_SIZE / sizeof(off_t)); l++)
                             {
-                                if(*offset == 0) continue;
+                                if (*offset == 0)
+                                    continue;
 
                                 // get and set block index in bitmap to 0.
                                 int block_idx = (*offset - super_block->d_blocks_ptr) / BLOCK_SIZE;
                                 setbitmap(dbitmap, 0, block_idx, 1);
-
 
                                 // advance offset node
                                 offset += 1;
@@ -456,7 +456,7 @@ int delete(struct wfs_inode *directory, char *file_name)
                         }
                         // get dblock index and set bitmap to indicate freed
                         int idx = (inode->blocks[k] - super_block->d_blocks_ptr) / BLOCK_SIZE;
-                        
+
                         // set idx in dbitmap to zero
                         setbitmap(dbitmap, 0, idx, 1);
                     }
@@ -673,25 +673,26 @@ static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct 
         if (file_node->blocks[i] != 0)
         {
             // valid block so read in this block
-            if(i == N_BLOCKS - 1)
+            if (i == N_BLOCKS - 1)
             {
-                off_t * indirect_ptr = (off_t *)(file_system + file_node->blocks[i]);
+                off_t *indirect_ptr = (off_t *)(file_system + file_node->blocks[i]);
                 // loop over off_ts starting at indirect_ptr, for each one read the block
-                for(int j = 0; j < (BLOCK_SIZE / sizeof(off_t)); j++)
+                for (int j = 0; j < (BLOCK_SIZE / sizeof(off_t)); j++)
                 {
-                    if(indirect_ptr[j] == 0) continue;
+                    if (indirect_ptr[j] == 0)
+                        continue;
 
-                    char * indirect_block = file_system + indirect_ptr[j] + block_offset; // offset should be zero if this is not the first block otherwise adjust
+                    char *indirect_block = file_system + indirect_ptr[j] + block_offset; // offset should be zero if this is not the first block otherwise adjust
 
                     size_t file_bytes_left = file_node->size - offset - bytes_read;
-                    size_t remianing_bytes = min(file_bytes_left, n - bytes_read); // whats shorter length till end of file or bytes still requested
+                    size_t remianing_bytes = min(file_bytes_left, n - bytes_read);     // whats shorter length till end of file or bytes still requested
                     size_t read_num = min(BLOCK_SIZE - block_offset, remianing_bytes); // if block offset is zero, then it should either write block size or whats left
 
                     memcpy(buf + bytes_read, indirect_block, read_num);
                     bytes_read += read_num;
                     block_offset = 0; // to only apply offset once
                 }
-            } 
+            }
             else
             {
                 char *valid_block = file_system + file_node->blocks[i] + block_offset;
@@ -714,8 +715,7 @@ static int wfs_read(const char *path, char *buf, size_t n, off_t offset, struct 
 // writes data to a inode
 static int wfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
-    // size is 1+ buffer
-    printf("now entering write..\n");
+    // printf("now entering write..\n");
 
     struct wfs_inode *inode = get_inode(path);
     if (inode == NULL)
@@ -731,11 +731,14 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
     }
     off_t datablock;
     char *datablock_ptr;
-    off_t starting_block = inode->size / BLOCK_SIZE;
-    off_t starting_offset = inode->size % BLOCK_SIZE;
+
+    // if offset is empty,
+    off_t starting_block = offset / BLOCK_SIZE;
+    off_t starting_offset = offset % BLOCK_SIZE;
     off_t offset_in_buffer = 0;
     // loop over first 7 blocks
     // start at the block where the size ends, that is there is open space
+    // loop over all blocks, looking for a frees
     for (int i = starting_block; i < N_BLOCKS - 1; i++)
     {
         // no more blocks needed
@@ -758,17 +761,19 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
         datablock_ptr = file_system + datablock;
 
         // calculate how much can be fit into this pointer
-        size_t bytes_left_in_block = BLOCK_SIZE - (datablock % BLOCK_SIZE);
+        size_t bytes_left_in_block = BLOCK_SIZE - ((datablock - super_block->d_blocks_ptr) % BLOCK_SIZE);
         size_t bytes_to_be_written = size - offset_in_buffer;
         size_t bytes_that_will_be_written = min(bytes_left_in_block, bytes_to_be_written);
         // copy over memory
         memcpy(datablock_ptr, buf + offset_in_buffer, bytes_that_will_be_written);
-        // printf("the data written is %s\n", datablock_ptr);
+
         // mark block as allocated
 
         // update size
         inode->size += bytes_that_will_be_written;
         offset_in_buffer += bytes_that_will_be_written;
+        starting_offset += bytes_that_will_be_written;
+        starting_block++;
         data_blocks_needed--;
     }
 
@@ -782,13 +787,16 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
             inode->blocks[7] = allocate_datablock();
         }
         // find the start inside of the indirect blocks
-        int index_in_indirect = starting_block - N_BLOCKS;
-
+        int index_in_indirect = starting_block - 7;
+        printf("the starting block is: %ld\n", starting_block);
+        // printf("the current index is:%d\n ", index_in_indirect);
         // loop through each block in the indirect block
-        off_t *offsets = (off_t *)inode->blocks[7];
-        for (int i = index_in_indirect; i < N_BLOCKS; i++)
-        {
+        printf("size of an offse it: %ld\n", sizeof(off_t));
+        off_t *offsets = (off_t *)(file_system + inode->blocks[7]);
 
+        for (int i = index_in_indirect; i < BLOCK_SIZE/sizeof(off_t); i++)
+        {
+            printf("\nwfs_write: the current index is:%d\n ", i);
             // no more blocks needed
             if (data_blocks_needed <= 0)
             {
@@ -809,21 +817,27 @@ static int wfs_write(const char *path, const char *buf, size_t size, off_t offse
             datablock_ptr = file_system + datablock;
 
             // calculate how much can be fit into this pointer
-            size_t bytes_left_in_block = BLOCK_SIZE - (datablock % BLOCK_SIZE);
+            size_t bytes_left_in_block = BLOCK_SIZE - ((datablock - super_block->d_blocks_ptr) % BLOCK_SIZE);
             size_t bytes_to_be_written = size - offset_in_buffer;
             size_t bytes_that_will_be_written = min(bytes_left_in_block, bytes_to_be_written);
+            // printf("BLOCK: %d, BYTES LEFT IN BLOCK: %ld, BYTES TO BE WRITTEN: %ld, BYTES THAT WILL BE WRITTEN %ld\n",i, bytes_left_in_block, bytes_to_be_written, bytes_that_will_be_written);
+
             // copy over memory
             memcpy(datablock_ptr, buf + offset_in_buffer, bytes_that_will_be_written);
-            // printf("the data written is %s\n", datablock_ptr);
             // mark block as allocated
 
             // update size
             inode->size += bytes_that_will_be_written;
             offset_in_buffer += bytes_that_will_be_written;
+            starting_offset += bytes_that_will_be_written;
+            starting_block++;
             data_blocks_needed--;
         }
     }
-
+    if (data_blocks_needed > 0)
+    {
+        return -ENOSPC;
+    }
     printf("everything written...\n");
     return size;
 }
